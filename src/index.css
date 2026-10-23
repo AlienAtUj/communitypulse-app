@@ -1,0 +1,29 @@
+@import url("https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap");
+@import "tailwindcss";
+
+:root {
+  --color-primary:      #003DA5;   /* Eskom blue — headers, primary buttons, active nav, links */
+  --color-accent:       #FFC72C;   /* Eskom yellow — small accents, badges, highlights only */
+  --color-success:      #00A651;   /* green — resolved, open, confirmed */
+  --color-warning:      #FF9500;   /* amber — pending, medium priority */
+  --color-danger:       #E4002B;   /* red — critical, high priority, alerts */
+  --color-bg:           #FFFFFF;   /* app background */
+  --color-surface:      #F7F8FA;   /* card backgrounds, input backgrounds */
+  --color-border:       #E5E7EB;   /* 1px dividers, card borders, input borders */
+  --color-text-1:       #111827;   /* headings, primary body */
+  --color-text-2:       #6B7280;   /* secondary text, captions */
+  --color-text-3:       #9CA3AF;   /* placeholder, disabled */
+}
+
+@theme {
+  --font-sans: "Satoshi", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html, body {
+  font-family: "Satoshi", system-ui, -apple-system, "Segoe UI", sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text-1);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}

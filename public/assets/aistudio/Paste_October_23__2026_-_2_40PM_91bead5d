@@ -1,0 +1,1111 @@
+COMMUNITYPULSE — COMPLETE BUILD SPECIFICATION
+Multi-Hazard Community Resilience Platform for South Africa
+═══════════════════════════════════════════════════════════════════════
+
+0. MISSION
+You are building a demo mobile web app called CommunityPulse. It is a multi-hazard community resilience platform for South Africa. It connects residents, municipalities, NGOs, and community champions in one low-data system so communities can report disruptions, verify incidents, find nearby resources, and know when help is coming.
+
+This app must look and feel like it was designed by a senior product designer at a top agency — NOT like an AI-generated template. Every screen, component, icon, and interaction must feel intentional, simple, and human.
+
+The tagline is: Know early. Report once. Find help. Get services where they are needed most.
+
+The product promise is: Few clicks. More help. Help is coming.
+
+Build only what is specified below. Do not invent extra screens, extra features, extra decorations, or extra complexity. Simplicity wins.
+
+1. NON-NEGOTIABLE RULES (READ TWICE)
+These rules override any default behavior you have. If you are about to break one, stop and re-read.
+
+Design rules:
+
+Light mode ONLY. No dark mode toggle. No prefers-color-scheme overrides.
+
+NO emojis anywhere — not in labels, buttons, cards, empty states, alerts, or toasts. Zero. None.
+
+NO icon libraries. Do not import from Lucide, Heroicons, Feather, Material, Phosphor, Tabler, or any icon package. Build every icon yourself as an inline SVG component (see Section 4).
+
+NO component libraries. Do not use shadcn/ui, Radix, MUI, Chakra, Ant, Headless UI, Tailwind UI, or any pre-built component system. Build every component from scratch with explicit Tailwind classes.
+
+NO gradients. Flat colors only.
+
+NO large shadows. The only shadow allowed is 0 1px 2px rgba(0,0,0,0.04).
+
+NO custom images or stock photos. Icons, color, typography, and layout do all the work.
+
+NO hover-only interactions. Mobile-first: use active/pressed states.
+
+NO placeholder text like "Lorem ipsum", "User 1", "Location A", "Test". Use realistic South African data from Section 8.
+
+One component per concept. One Card. One Button. One StatusBadge. One Input. Use them everywhere without variation.
+
+Typography rules:
+
+Font: Satoshi ONLY. Load from https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap. Fallback chain: Satoshi, system-ui, -apple-system, "Segoe UI", sans-serif.
+
+NEVER use: Inter, Roboto, Open Sans, Lato, Poppins, Montserrat, Nunito, DM Sans, or any Google Font.
+
+Minimum text size anywhere: 12px. No 10px captions, no 11px labels.
+
+Interaction rules:
+
+Every tappable element must be ≥48px tall.
+
+Every action must produce visible feedback (state change, navigation, toast, or status update). No dead buttons.
+
+Bottom navigation must be visible on Home, Updates, and Help screens at all times.
+
+All data lives in a single data.ts file. Screens read from it. Report submissions write to it. No screen has hardcoded one-off data.
+
+2. BRAND & DESIGN SYSTEM
+2.1 Color Tokens
+Define these as CSS variables in globals.css and use Tailwind arbitrary values (bg-[#003DA5]) or extend the Tailwind config. Do NOT invent other colors.
+
+text
+--color-primary:      #003DA5   /* Eskom blue — headers, primary buttons, active nav, links */
+--color-accent:       #FFC72C   /* Eskom yellow — small accents, badges, highlights only */
+--color-success:      #00A651   /* green — resolved, open, confirmed */
+--color-warning:      #FF9500   /* amber — pending, medium priority */
+--color-danger:       #E4002B   /* red — critical, high priority, alerts */
+--color-bg:           #FFFFFF   /* app background */
+--color-surface:      #F7F8FA   /* card backgrounds, input backgrounds */
+--color-border:       #E5E7EB   /* 1px dividers, card borders, input borders */
+--color-text-1:       #111827   /* headings, primary body */
+--color-text-2:       #6B7280   /* secondary text, captions */
+--color-text-3:       #9CA3AF   /* placeholder, disabled */
+Semantic color rules:
+
+Green = good, open, resolved, confirmed. Use for StatusBadge resolved and open, and success icons.
+
+Amber = pending, waiting, medium. Use for StatusBadge reported and pending.
+
+Red = critical, urgent, danger. Use for StatusBadge critical, danger buttons, and alert banners.
+
+Blue = information, primary action, active state. Use everywhere else.
+
+Yellow (accent) = sparing highlights only. Do not use as a background for large areas.
+
+2.2 Typography Scale
+Hardcode these exact values. Do not improvise.
+
+Role	Size	Weight	Tracking	Line Height	Usage
+Display	32px	900	-0.02em	1.15	Screen title only (Home greeting, Hero)
+H1	24px	700	-0.01em	1.2	Screen headers
+H2	20px	700	normal	1.3	Section headers
+H3	16px	700	normal	1.4	Card titles
+Body	15px	400	normal	1.5	All paragraph text
+Body Medium	15px	500	normal	1.5	Emphasis within body
+Label	13px	500	0.05em uppercase	1.4	Section labels, form labels, small metadata
+Caption	12px	400	normal	1.4	Timestamps, distance, helper text
+Button	15px	700	normal	1.0	All buttons
+2.3 Spacing Grid
+Use ONLY these values. No 6px, no 10px, no 14px, no 18px, no 30px.
+
+4, 8, 12, 16, 20, 24, 32, 40, 48, 64
+
+Standard spacing:
+
+Screen horizontal padding: 20px
+
+Card internal padding: 20px
+
+Gap between cards in a list: 16px
+
+Gap between major sections: 24px
+
+Gap between label and content: 12px
+
+Bottom nav height: 64px + env(safe-area-inset-bottom)
+
+2.4 Border Radius
+Element	Radius
+Pills, badges	999px (fully rounded)
+Buttons, inputs	12px
+Cards	16px
+Bottom sheets	24px (top corners only)
+Icon circles	999px
+Icon squares	12px
+2.5 Shadows
+There is exactly ONE shadow in this app:
+
+css
+box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+Apply to Cards only. Nowhere else. No shadows on buttons, nav, headers, or modals. For elevation on sheets/modals, use a backdrop overlay (rgba(0,0,0,0.4)) instead of a shadow.
+
+3. APP ARCHITECTURE
+3.1 Routes
+text
+/              → Home screen (resident)
+/report        → Report flow (bottom sheet overlay on Home or standalone)
+/updates       → Updates screen (list of incidents)
+/help          → Find Help screen (resource locator)
+/dashboard     → Responder dashboard (municipality view) — separate entry point
+/ngo           → NGO partner view — separate entry point
+Residents use Home, Updates, Help. Responders and NGOs are separate demo entry points (link to them from a hidden "Demo" footer link on Home, or just let judges navigate to /dashboard directly — but document that this is the responder view).
+
+3.2 Navigation
+Bottom Nav — persistent across /, /updates, /help:
+
+text
+[ Home ]   [ Updates ]   [ Help ]
+Height: 64px + safe area
+
+Background: --color-bg (white)
+
+Top border: 1px --color-border
+
+3 items, evenly spaced
+
+Each item: icon (24px) above label (11px / 500)
+
+Active: --color-primary for both icon and label
+
+Inactive: --color-text-2 for both icon and label
+
+NO glow, NO animation, NO gradient on active. Just color.
+
+Report flow (/report) opens as a bottom sheet over the current screen (backdrop dims the screen behind). It is NOT a full-page modal.
+
+Incident detail opens as a bottom sheet over the Updates or Home screen.
+
+3.3 Global Layout
+Wrap every screen in:
+
+tsx
+<div className="mx-auto w-full max-w-[420px] min-h-screen bg-white flex flex-col pb-24">
+  {/* screen content */}
+</div>
+pb-24 reserves space for the bottom nav. The app must look like a phone even in a desktop browser.
+
+4. CUSTOM ICON SYSTEM (CRITICAL)
+Create components/icons.tsx. Every icon is an inline SVG function component. Do NOT import icons from any library. Draw fresh paths — do not copy from Lucide, Heroicons, or Feather. These icons have thicker strokes (2.25px vs typical 2px) which gives them a distinctive, confident mobile feel.
+
+Universal rules for every icon:
+
+viewBox="0 0 24 24"
+
+fill="none"
+
+stroke="currentColor"
+
+strokeWidth={2.25}
+
+strokeLinecap="round"
+
+strokeLinejoin="round"
+
+Accept props: { size?: number; className?: string } with defaults size=24, className=""
+
+Apply width={size} height={size} and className={className} to the <svg>
+
+Required icons (build every one):
+
+IconPower — Lightning bolt with flat top and bottom edges, not zigzag. Sharp, confident silhouette.
+
+IconWater — Droplet outline with one subtle inner wave curve suggesting water inside.
+
+IconFood — Bowl outline with three short steam arcs above it.
+
+IconRoad — Perspective road: two converging vertical curves with 3 dashed center segments.
+
+IconFlood — Three stacked horizontal wave lines with slight phase offset.
+
+IconReport — Rounded square outline with a bold plus sign centered inside.
+
+IconLocation — Classic map pin with a hollow circle in the middle.
+
+IconClock — Circle outline with two hands at the 10:10 position.
+
+IconCheck — Checkmark with a slight curved tail (not perfectly straight).
+
+IconAlert — Triangle outline with a bold exclamation line inside (no dot below).
+
+IconBell — Bell outline with a single short horizontal line below (clapper).
+
+IconHome — Simple house: flat roof line, side walls, small door rectangle.
+
+IconList — Three horizontal lines of equal length with a small dot to the left of each.
+
+IconHelp — Lifebuoy: outer circle, inner circle, four short spokes at 45°, 135°, 225°, 315°.
+
+IconPhone — Classic handset outline (rotated receiver shape).
+
+IconArrowRight — Horizontal line with a chevron head on the right end.
+
+IconClose — X with rounded line caps.
+
+IconChevronDown — Single chevron pointing down.
+
+IconPeople — Two overlapping head-and-shoulder silhouettes (stroke only).
+
+IconTruck — Water tanker: cab rectangle on left, cylindrical tank on right, two wheels below.
+
+Example template:
+
+tsx
+export function IconPower({ size = 24, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      {/* your fresh path data here — do not copy from any library */}
+    </svg>
+  );
+}
+5. COMPONENT LIBRARY
+Build every component in its own file under components/. Every screen must use these — no one-off variants.
+
+5.1 Button.tsx
+tsx
+type Variant = "primary" | "secondary" | "danger" | "ghost";
+type Size = "md" | "lg";
+Variant	Background	Text	Border
+primary	--color-primary	white	none
+secondary	white	--color-primary	1px --color-primary
+danger	--color-danger	white	none
+ghost	transparent	--color-text-1	none
+md height: 48px
+
+lg height: 56px (use for the main CTA in the report flow)
+
+Radius: 12px
+
+Padding: 0 20px
+
+Font: 15px / 700
+
+Transition: transform 100ms ease
+
+Active: transform: scale(0.98)
+
+Disabled: opacity: 0.4; pointer-events: none
+
+Focus visible: outline: 2px solid #003DA5; outline-offset: 2px
+
+5.2 Card.tsx
+bg-white, rounded-2xl (16px), p-5 (20px)
+
+border border-[#E5E7EB]
+
+shadow-[0_1px_2px_rgba(0,0,0,0.04)]
+
+Accept onClick optional — when present, add active:scale-[0.99] transition-transform duration-100 cursor-pointer
+
+This is the ONLY card style. Every card in the app uses this component.
+
+5.3 StatusBadge.tsx
+Pill: px-2.5 py-1 rounded-full text-[12px] font-bold uppercase tracking-[0.05em]
+
+Status	Background	Text
+reported	#FEF3C7	#92400E
+verified	#DBEAFE	#1E40AF
+assigned	#DBEAFE	#1E40AF
+resolved	#D1FAE5	#065F46
+critical	#FEE2E2	#991B1B
+open	#D1FAE5	#065F46
+closed	#F3F4F6	#6B7280
+5.4 Input.tsx
+Height: 48px
+
+Radius: 12px
+
+bg-[#F7F8FA], border border-[#E5E7EB]
+
+Padding: 0 16px
+
+Font: 15px / 400
+
+Placeholder: --color-text-3
+
+Focus: border-[#003DA5], ring-2 ring-[#003DA5]/20
+
+Accept label prop — render above input in Label style (13px / 500 / uppercase / tracking-[0.05em] / text-[#6B7280] / mb-2)
+
+5.5 IconCircle.tsx
+Reusable circular icon container:
+
+Size prop: sm (32px), md (40px), lg (48px)
+
+Background prop: color from palette at 10% opacity (e.g. bg-[#003DA5]/10)
+
+Icon color: the full color (e.g. text-[#003DA5])
+
+Icon size: 60% of container
+
+Use everywhere you show an icon in a circle (report cards, resource cards, action cards).
+
+5.6 BottomNav.tsx
+Specified in Section 3.2. Items:
+
+Home → / → IconHome
+
+Updates → /updates → IconList
+
+Help → /help → IconHelp
+
+Fixed bottom, safe area padding, top border, 3 items. Use usePathname() to determine active.
+
+5.7 BottomSheet.tsx
+Slides up from bottom (animate translate-y from 100% to 0 over 250ms ease-out)
+
+Backdrop: bg-black/40 — clicking closes the sheet
+
+Panel: white, rounded-t-3xl (24px top corners), max-h-[90vh] overflow-y-auto
+
+Drag handle at top center: 40×4px rounded grey bar, mb-4
+
+Close button top right: IconClose in a 40px tap target
+
+Uses position: fixed; inset: 0; z-index: 50
+
+5.8 AlertBanner.tsx
+Full-width banner at top of screen when an active alert exists
+
+Padding: p-4, radius: 12px
+
+Variants: info (blue tint), warning (amber tint), danger (red tint)
+
+Layout: icon left (24px) + text + dismiss X right
+
+Text: Body Medium
+
+Icon: use existing custom icons (IconAlert, IconBell)
+
+5.9 IncidentCard.tsx
+The most important reusable card. Layout:
+
+text
+┌──────────────────────────────────────────┐
+│ [IconCircle] Power outage       [BADGE]  │
+│ Section C, Ward 8 · 17:30                │
+│ 240 households · 4 confirmed             │
+│                                          │
+│ View details                    →        │
+└──────────────────────────────────────────┘
+Uses Card + IconCircle + StatusBadge
+
+Row 1: IconCircle(md, type color) + type label (H3) + StatusBadge (right)
+
+Row 2: Caption — location + · + time
+
+Row 3: Caption — affected count + · + confirmations
+
+Row 4: "View details" text link (15px / 500 / --color-primary) + IconArrowRight (16px)
+
+If priority is critical, add a red left border: border-l-4 border-[#E4002B]
+
+5.10 ResourceCard.tsx
+text
+┌──────────────────────────────────────────┐
+│ [IconCircle] Water tanker       [OPEN]   │
+│ Community Hall · 0.8km                   │
+│ Open until 18:00 · updated 12 min ago    │
+└──────────────────────────────────────────┘
+Uses Card + IconCircle + StatusBadge (open/closed)
+
+Right side has IconChevronDown rotated -90° (or IconArrowRight)
+
+5.11 ScreenHeader.tsx
+Standard top-of-screen header used across screens:
+
+Container: sticky top-0 z-10 bg-white px-5 pt-4 pb-3 border-b border-[#E5E7EB]
+
+Title: H1 (24px / 700)
+
+Optional subtitle: Body / --color-text-2
+
+Optional right action slot (e.g. location chip)
+
+5.12 SectionLabel.tsx
+Text: 13px / 500 / uppercase / tracking 0.05em / --color-text-2
+
+Margin-bottom: 12px
+
+Used to introduce every section ("WHAT DO YOU NEED?", "YOUR RECENT REPORTS", "PRIORITY INCIDENTS")
+
+5.13 EmptyState.tsx
+Centered block, padding 48px vertical
+
+IconCircle(lg, grey) with a relevant icon
+
+H3 heading (e.g. "No active incidents")
+
+Body description (1 line, text-2)
+
+Optional action button
+
+5.14 Toast.tsx
+Rendered top-center below the screen header, or bottom above the nav
+
+Auto-dismisses after 3 seconds
+
+Variants: success (green), error (red), info (blue)
+
+Layout: icon + message (Body Medium)
+
+Radius: 12px, padding 12px 16px
+
+Shadow: 0 1px 2px rgba(0,0,0,0.04) only
+
+6. SCREEN-BY-SCREEN SPECIFICATIONS
+Every screen below specifies: layout, content, states, and interactions. Build exactly this.
+
+6.1 HOME (/)
+Purpose: The resident landing screen. One glance tells them what is happening and what to do next.
+
+Layout (top to bottom):
+
+ScreenHeader
+
+Left: Display text "Good morning, Thabo"
+
+Right: location chip — pill with IconLocation (16px) + "Section C, Ward 8" (Caption / --color-text-2) inside bg-[#F7F8FA] px-3 py-1.5 rounded-full
+
+AlertBanner (conditional — only if there's an active alert in data.ts)
+
+warning variant
+
+Icon: IconPower
+
+Text: "Load shedding 18:00–20:30 in your area. Charge devices."
+
+Dismiss X on right
+
+Section: SectionLabel "WHAT DO YOU NEED?"
+
+Three stacked action cards (each is a Card with onClick):
+
+Card 1 → navigates to /report (opens bottom sheet)
+
+Left: IconCircle(md, blue tint) with IconReport
+
+Middle: H3 "Report a Problem" + Caption "Power, water, food, roads, floods"
+
+Right: IconArrowRight (20px, text-2)
+
+Card 2 → navigates to /updates
+
+Left: IconCircle(md, blue tint) with IconList
+
+Middle: H3 "What's Happening" + Caption "{N} active incidents nearby" (N from data)
+
+Right: IconArrowRight
+
+Card 3 → navigates to /help
+
+Left: IconCircle(md, blue tint) with IconHelp
+
+Middle: H3 "Find Help" + Caption "Water, food, charging, clinics"
+
+Right: IconArrowRight
+
+Section: SectionLabel "YOUR RECENT REPORTS"
+
+List of 2 most recent incidents where isMine === true from data.ts
+
+Use IncidentCard for each
+
+If user has no reports yet: EmptyState with IconReport + heading "No reports yet" + body "Tap Report a Problem above to report a disruption."
+
+BottomNav
+
+Interactions:
+
+Tapping any action card navigates or opens the report sheet
+
+Tapping an IncidentCard opens the incident detail bottom sheet
+
+Tapping the alert banner X dismisses it for the session
+
+6.2 REPORT FLOW (/report) — bottom sheet
+Purpose: Report a disruption in 3 taps maximum.
+
+Structure: Multi-step bottom sheet, controlled by local state step (1 | 2 | 3 | 4).
+
+Step 1 — Choose type
+
+Header: H2 "What's the problem?" + Caption "Choose one"
+
+Grid of 5 selectable tiles (2-column, last tile full-width or centred)
+
+Each tile:
+
+Card with p-4, flex flex-col items-center gap-2, min-h-[88px]
+
+IconCircle(md, blue tint) with the matching icon
+
+Label below: Body Medium, centered
+
+Selected state: border-2 border-[#003DA5] bg-[#003DA5]/5
+
+Tiles: Power (IconPower), Water (IconWater), Food (IconFood), Road (IconRoad), Flood (IconFlood)
+
+Next button: Button primary, lg, full width, "Continue", disabled until a type is selected
+
+Step 2 — Confirm location
+
+Header: H2 "Confirm your location" + Caption "We use this to match your report to neighbours"
+
+Visual: a map-preview card (a Card with a styled placeholder showing a grid + a blue pin, no real map — use a subtle dot grid pattern drawn with CSS or a small SVG pattern)
+
+Text below map: Body Medium — "Section C, Ward 8" (pre-filled)
+
+Input labeled "STREET OR LANDMARK" with placeholder "e.g. 12 Mzamo Street"
+
+Button secondary full width, "Use my current location" — clicking this simulates GPS and fills "Section C, Ward 8" (already there — just add a checkmark next to it)
+
+Nav row: Button ghost "Back" + Button primary "Continue"
+
+Step 3 — Add details (optional)
+
+Header: H2 "Add details" + Caption "Optional — helps responders prioritise"
+
+Input labeled "WHAT DO YOU SEE?" with placeholder "e.g. No power since 17:30, clinic fridge at risk"
+
+Upload area: dashed border card (border-2 border-dashed border-[#E5E7EB] rounded-2xl p-8 text-center), IconReport in grey circle, body "Add a photo", caption "Optional"
+
+Nav row: Button ghost "Back" + Button primary "Send report" (lg)
+
+Step 4 — Success
+
+Centered: IconCircle(lg, green tint) with IconCheck
+
+H1 "Report sent"
+
+Body "We'll notify you when neighbours confirm. You'll get an update on WhatsApp or SMS."
+
+Button primary full width "Back to home" — closes sheet, returns to Home, and a Toast success appears: "Report received. Waiting for neighbours to confirm."
+
+State on submit:
+
+Append a new incident to data.ts state with status: "reported", confirmations: 0, isMine: true, type from step 1, location from step 2, description from step 3, time: now.
+
+Simulate verification: after 2s, set confirmations: 3, status: "verified".
+
+Simulate assignment: after 4s, set status: "assigned", eta: "19:45", and show a Toast info: "Repair team assigned. ETA 19:45. See Updates for details."
+
+This progression must be visible on the Home screen "recent reports" and /updates — same data source.
+
+6.3 UPDATES (/updates)
+Purpose: See every active and past disruption nearby, with live status.
+
+Layout:
+
+ScreenHeader — H1 "What's Happening" + Caption subtitle "{N} active incidents in Section C, Ward 8"
+
+Segmented tabs (custom, not a library):
+
+Pill container: bg-[#F7F8FA] rounded-full p-1 flex
+
+Two options: "Active" and "Resolved"
+
+Active tab: bg-white text-[#003DA5] font-700 rounded-full px-4 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)]
+
+Inactive tab: text-[#6B7280] px-4 py-2
+
+List of IncidentCard filtered by tab (status !== "resolved" for Active, status === "resolved" for Resolved), sorted by priority (critical > high > medium) then time descending
+
+Gap between cards: 16px
+
+If empty: EmptyState with IconList + heading "All clear" + body "No active incidents in your area right now."
+
+BottomNav
+
+Interactions:
+
+Tapping an IncidentCard opens the incident detail bottom sheet
+
+Tabs switch the filtered list
+
+6.4 INCIDENT DETAIL (bottom sheet)
+Purpose: Show everything about one incident, including a status timeline so residents know exactly where help stands.
+
+Layout (top to bottom):
+
+Drag handle
+
+Header row: IconCircle(md, type colour) + H2 "{type} outage" + StatusBadge
+
+Meta: Caption "Section C, Ward 8 · Reported 17:30 · 4 neighbours confirmed"
+
+Description (if present): Body, --color-text-1
+
+Facilities affected (if present): SectionLabel "CRITICAL FACILITIES" + list of pills (rounded bg-[#F7F8FA] px-3 py-1 text-[13px] text-[#111827]) — "Clinic fridge", "Traffic lights"
+
+SectionLabel "STATUS"
+
+Vertical timeline (4 steps):
+
+Reported → Verified → Assigned → Resolved
+
+Each step row: 24px circle on left, vertical connector line between, title (Body Medium) + caption
+
+Completed steps: green filled circle with IconCheck inside (white)
+
+Active step: blue filled circle with pulsing ring (subtle animate-pulse on ring only)
+
+Future steps: grey outline circle, muted text
+
+Connector line: completed segments = green, future = grey
+
+If status === "assigned" show a highlighted card: "Repair team assigned. ETA {eta}." with IconTruck icon
+
+Bottom action row:
+
+Button secondary full-width "Find nearby help" → closes sheet, navigates to /help
+
+If status !== "resolved": Button primary full-width "Confirm resolved" → sets status: "resolved" in data, closes sheet, shows success toast "Marked as resolved. Thank you for confirming."
+
+6.5 FIND HELP (/help)
+Purpose: Show verified nearby resources — water, food, charging, clinics, shelters — with freshness info.
+
+Layout:
+
+ScreenHeader — H1 "Find Help Nearby" + Caption "All resources verified by municipality or NGO partners"
+
+Horizontal-scrolling filter pills:
+
+All | Water | Food | Charging | Clinics | Shelter
+
+Each pill: px-4 py-2 rounded-full text-[13px] font-500 whitespace-nowrap
+
+Active: bg-[#003DA5] text-white
+
+Inactive: bg-[#F7F8FA] text-[#111827] border border-[#E5E7EB]
+
+Container: flex gap-2 overflow-x-auto px-5 -mx-5 pb-2 (horizontal scroll)
+
+List of ResourceCard filtered by selected pill
+
+Each card shows: type icon, name, distance, hours, status badge (Open/Closed), "updated X min ago"
+
+If empty: EmptyState with IconHelp + heading "No resources in this category" + body "Try a different filter."
+
+BottomNav
+
+Interactions:
+
+Tapping a filter pill filters the list (no navigation)
+
+Tapping a ResourceCard opens a small info sheet with "Navigate" button and phone number (if available) — or just a Toast "Opening directions…" for demo purposes
+
+6.6 RESPONDER DASHBOARD (/dashboard)
+Purpose: Municipality/responder view — see priorities and act. Separate entry from resident app. Document that judges can visit /dashboard directly.
+
+Layout:
+
+ScreenHeader — H1 "Responder Dashboard" + Caption "Eskom · Ward 8 · Live"
+
+Stats row — 3 compact Cards in a 3-column grid:
+
+Each: padding 16px, centered text
+
+Value: H1 (24px / 700), --color-text-1
+
+Label: Label (13px / 500 / uppercase), --color-text-2
+
+Stats: "12" Active | "4" High Priority | "8" Resolved Today
+
+High priority value: --color-danger
+
+Map placeholder Card:
+
+Height 200px
+
+Light dot-grid background
+
+5–6 coloured pins drawn as small circles (blue/amber/red)
+
+Caption below: "Live incident map"
+
+SectionLabel "PRIORITY INCIDENTS"
+
+List of incidents sorted by priority. Each uses a custom ResponderIncidentCard:
+
+Top row: priority badge (critical/high/medium) + type + time
+
+Location (Body Medium)
+
+Affected summary: "240 households · 1 clinic · 2 schools"
+
+Two buttons side-by-side:
+
+Button primary "Assign team"
+
+Button secondary "Send update"
+
+Tapping "Assign team" → sets status assigned in data + Toast success "Team assigned. Residents notified."
+
+Tapping "Send update" → opens a small bottom sheet with a text input to compose a message + "Send" button → Toast success "Update sent to 240 residents."
+
+6.7 NGO VIEW (/ngo)
+Purpose: NGO partner sees aggregated community needs and can offer help. Separate entry from resident app.
+
+Layout:
+
+ScreenHeader — H1 "Partner Dashboard" + Caption "Gift of the Givers · viewing Ward 8"
+
+SectionLabel "COMMUNITY NEEDS"
+
+List of aggregated need cards — one per category with active incidents:
+
+Card layout:
+
+Left: IconCircle(md) with type icon
+
+Middle: H3 (e.g. "Water") + Body (e.g. "240 households affected") + Caption (e.g. "Ward 8 · 3 active incidents")
+
+Right: priority StatusBadge
+
+Bottom row: Button primary "I Can Help"
+
+Tapping "I Can Help" opens a bottom sheet:
+
+H2 "Offer support"
+
+Input label "WHAT CAN YOU PROVIDE?" placeholder "e.g. Water tanker, 500L"
+
+Input label "QUANTITY"
+
+Input label "ETA (OPTIONAL)" placeholder "e.g. Within 2 hours"
+
+Button primary full-width "Send offer"
+
+On submit: close sheet, show Toast success "Offer sent to municipality. They'll respond shortly."
+
+After offering, that need card shows a small StatusBadge "offer sent" and the button becomes secondary "Update offer"
+
+7. DATA MODEL
+Create lib/data.ts. Export typed data and a small store (use useState + a simple context, or zustand, or just lift state into a single provider). Everything must come from here.
+
+ts
+export type IncidentType = "power" | "water" | "food" | "road" | "flood";
+export type IncidentStatus = "reported" | "verified" | "assigned" | "resolved";
+export type Priority = "critical" | "high" | "medium";
+
+export interface Incident {
+  id: string;
+  type: IncidentType;
+  location: string;
+  affected: number;
+  confirmations: number;
+  status: IncidentStatus;
+  priority: Priority;
+  facilities?: string[];
+  time: string;        // e.g. "17:30"
+  eta?: string;        // e.g. "19:45"
+  description?: string;
+  isMine?: boolean;
+}
+
+export interface Resource {
+  id: string;
+  type: "water" | "food" | "charging" | "clinic" | "shelter";
+  name: string;
+  distance: string;    // e.g. "0.8km"
+  hours: string;       // e.g. "Open until 18:00"
+  status: "open" | "closed";
+  updated: string;     // e.g. "12 min ago"
+}
+
+export interface Alert {
+  id: string;
+  variant: "info" | "warning" | "danger";
+  icon: "power" | "water" | "flood" | "alert";
+  text: string;
+}
+Seed data (use exactly this — it is realistic and South African):
+
+ts
+export const SEED_INCIDENTS: Incident[] = [
+  { id: "INC-001", type: "power", location: "Section C, Ward 8", affected: 240, confirmations: 4,
+    status: "assigned", priority: "high", facilities: ["Clinic fridge", "Traffic lights"],
+    time: "17:30", eta: "19:45" },
+  { id: "INC-002", type: "water", location: "Section D, Ward 8", affected: 36, confirmations: 3,
+    status: "verified", priority: "high", facilities: ["Clinic"], time: "16:00" },
+  { id: "INC-003", type: "food", location: "Ward 8", affected: 18, confirmations: 5,
+    status: "reported", priority: "medium", time: "14:20" },
+  { id: "INC-004", type: "road", location: "Main Road", affected: 42, confirmations: 6,
+    status: "verified", priority: "high", time: "13:10",
+    facilities: ["Clinic access", "School route"] },
+  { id: "INC-005", type: "flood", location: "Section A, Ward 8", affected: 12, confirmations: 3,
+    status: "assigned", priority: "critical",
+    facilities: ["3 elderly households"], time: "12:00", eta: "13:30" },
+];
+
+export const SEED_RESOURCES: Resource[] = [
+  { id: "RES-001", type: "water", name: "Water tanker — Community Hall", distance: "0.8km",
+    hours: "Open until 18:00", status: "open", updated: "12 min ago" },
+  { id: "RES-002", type: "charging", name: "Charging station — Library", distance: "1.2km",
+    hours: "Open until 20:00", status: "open", updated: "5 min ago" },
+  { id: "RES-003", type: "food", name: "Food parcels — Sizanani Centre", distance: "2.1km",
+    hours: "Tomorrow 09:00", status: "open", updated: "1 hour ago" },
+  { id: "RES-004", type: "clinic", name: "Clinic — Mzamo", distance: "3.4km",
+    hours: "Open until 17:00", status: "open", updated: "30 min ago" },
+  { id: "RES-005", type: "shelter", name: "Shelter — Mzamo Primary School", distance: "3.6km",
+    hours: "Open 24 hours", status: "open", updated: "20 min ago" },
+];
+
+export const ACTIVE_ALERT: Alert = {
+  id: "ALERT-001",
+  variant: "warning",
+  icon: "power",
+  text: "Load shedding 18:00–20:30 in your area. Charge devices.",
+};
+Data rules:
+
+All screens must read from the same store. Lifting state into a single React Context is fine.
+
+Report submissions append new incidents with isMine: true.
+
+Status transitions are simulated with setTimeout in the report flow (see 6.2).
+
+"Assign team" on the dashboard mutates the matching incident's status.
+
+"Confirm resolved" in the incident detail mutates the status to resolved.
+
+NGO offers don't need to mutate incidents — just show local success state.
+
+8. USER JOURNEYS (HOW THE APP WORKS)
+These journeys must be demo-able end-to-end. Practice them.
+
+Journey A — Report → Verify → Respond → Resolve
+
+Resident opens /
+
+Taps "Report a Problem" → sheet opens at /report
+
+Selects "Power" → Continue
+
+Confirms "Section C, Ward 8" → Continue
+
+Adds "No power since 17:30, clinic fridge at risk" → Send
+
+Success screen → Back to home
+
+Toast: "Report received"
+
+On Home, "YOUR RECENT REPORTS" now shows the new incident with reported badge
+
+After 2s: badge becomes verified, confirmations show "3 confirmed" — a toast appears "Confirmed by 3 neighbours"
+
+After 2s more: badge becomes assigned, ETA appears — a toast appears "Repair team assigned. ETA 19:45"
+
+User taps the incident → detail sheet opens with full status timeline showing all 4 steps
+
+Taps "Confirm resolved" → status becomes resolved, sheet closes, toast success
+
+Journey B — Find Help
+
+From Home, tap "Find Help"
+
+See all resources → tap "Water" filter → only water resources show
+
+Tap a water tanker card → see "Open until 18:00 · updated 12 min ago"
+
+Return to Home
+
+Journey C — Responder
+
+Navigate to /dashboard (judges can be told: "This is the municipality view")
+
+See 3 stats, live map, priority list
+
+Tap "Assign team" on the top critical incident → toast success "Team assigned. Residents notified."
+
+Tap "Send update" → bottom sheet → type message → Send → toast success "Update sent to 240 residents."
+
+Journey D — NGO
+
+Navigate to /ngo
+
+See needs list (Water, Food)
+
+Tap "I Can Help" on Water → sheet → "Water tanker, 500L" / "1" / "Within 2 hours" → Send offer
+
+Toast success "Offer sent to municipality"
+
+Need card shows "offer sent" badge
+
+9. INTERACTION & STATE PATTERNS
+Every screen must handle these states. Do not skip any.
+
+Loading:
+
+Simulate 800ms loading on first data fetch per screen (Updates, Help, Dashboard, NGO).
+
+Use a skeleton: 2–3 grey rounded rectangles in Card shape, pulsing gently with animate-pulse.
+
+Never show a spinner longer than 1s — this is a demo.
+
+Empty:
+
+Every list has an EmptyState (Section 5.13) with a helpful icon, heading, body, and optional action.
+
+Error:
+
+Form validation: if a Button is pressed with invalid input, show inline error text below the input: 12px / --color-danger / mt-1.
+
+No alert() calls, ever.
+
+Success:
+
+Use Toast component (5.14). Auto-dismiss at 3s. Never a browser alert().
+
+Press feedback:
+
+All buttons and cards: active:scale-[0.98] transition-transform duration-100. No hover styles (mobile-first).
+
+Focus states:
+
+All focusable elements: focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003DA5] focus-visible:outline-offset-2.
+
+10. MOBILE RESPONSIVENESS
+Design for 375px width first.
+
+Test and support 320px (small Android) and 428px (large iPhone).
+
+Container: mx-auto w-full max-w-[420px] — app looks like a phone on desktop.
+
+Never use fixed widths in px larger than 320.
+
+Use w-full + flex-1 for flexible elements.
+
+Bottom nav must include padding-bottom: env(safe-area-inset-bottom).
+
+No horizontal scroll except for filter pills on /help.
+
+No text overflow at 320px — use break-words on long labels.
+
+All buttons, cards, and sheet handles must be reachable with a thumb.
+
+11. ANTI-PATTERNS (DO NOT DO THESE — VERIFY BEFORE DELIVERING)
+Design:
+
+□ No emojis anywhere in JSX or copy
+□ No imported icons (no lucide-react, no react-icons, no @heroicons/react, no @radix-ui/react-icons)
+□ No component libraries (shadcn/ui, MUI, Chakra, Ant, Radix)
+□ No Google Fonts (Inter, Roboto, Poppins, Montserrat, etc.)
+□ No dark mode class, no dark: variants
+□ No gradient classes (bg-gradient-*)
+□ No shadows beyond 0 1px 2px rgba(0,0,0,0.04)
+□ No hardcoded hex colors outside the palette in Section 2.1
+□ No inconsistent radii (pills=999px, buttons/inputs=12px, cards=16px, sheets=24px top)
+□ No text below 12px
+Functionality:
+
+□ No dead buttons — every action triggers state, navigation, toast, or mutation
+□ No alert() or confirm() calls
+□ No duplicate data definitions — all incidents/resources from data.ts
+□ No screen missing BottomNav (Home, Updates, Help)
+□ No report flow missing the 4 steps
+□ No incident detail missing the timeline
+□ No hardcoded "Lorem ipsum", "User 1", "Test", "Location A"
+Content:
+
+□ All names, places, and numbers are South African and realistic (Thabo, Sizanani, Mzamo, Section C, Ward 8, R62, load shedding, water tanker)
+□ Success messages are specific ("Repair team assigned. ETA 19:45." not "Success!")
+12. BUILD ORDER (FOLLOW EXACTLY)
+Phase 1 — Foundation
+
+Scaffold project with Tailwind, load Satoshi from Fontshare in globals.css
+
+Define CSS variables for the palette
+
+Build components/icons.tsx with ALL 20 icons
+
+Build Card.tsx, Button.tsx, StatusBadge.tsx, Input.tsx, IconCircle.tsx, SectionLabel.tsx
+
+Build lib/data.ts with types and seed data
+
+Build a DataProvider context with incidents, resources, alert state and mutation functions
+
+Phase 2 — Resident Screens
+
+Build ScreenHeader, AlertBanner, BottomNav, IncidentCard, ResourceCard, EmptyState, Toast
+
+Build / Home
+
+Build /updates + IncidentDetail bottom sheet
+
+Build /help
+
+Build /report bottom sheet with 4 steps + status simulation on submit
+
+Phase 3 — Responder Screens
+
+Build /dashboard with stats, map placeholder, ResponderIncidentCard + "Assign team" + "Send update" flow
+
+Build /ngo with needs list + "I Can Help" sheet
+
+Phase 4 — Polish
+
+Add loading skeletons to Updates, Help, Dashboard, NGO
+
+Add empty states everywhere
+
+Add toasts on every action
+
+Verify press feedback on every button/card
+
+Test at 320px, 375px, 428px
+
+Phase 5 — Final QA
+Run the Section 13 checklist.
+
+13. FINAL QUALITY GATE
+Before you call the build finished, verify every line below. If any fails, fix it.
+
+Visual integrity
+
+□ Satoshi renders (open devtools, check computed font-family)
+□ Zero emojis anywhere (grep -r "😀\|⚡\|💧\|🚨\|✅" returns nothing)
+□ Zero icon library imports (grep -r "lucide\|heroicon\|feather" returns nothing)
+□ Zero component library imports (grep -r "shadcn\|radix\|mui\|chakra" returns nothing)
+□ Zero gradient classes (grep -r "bg-gradient" returns nothing)
+□ Zero dark: classes
+□ Every card uses the <Card> component (no ad-hoc card styling)
+□ Every badge uses <StatusBadge>
+□ Every button uses <Button>
+□ Every icon comes from components/icons.tsx
+Functional integrity
+
+□ Bottom nav appears on /, /updates, /help and correctly highlights the active item
+□ Report flow completes all 4 steps and writes to shared data
+□ New report appears in Home "recent reports" AND Updates list
+□ Status progresses reported → verified → assigned automatically with toasts
+□ Incident detail timeline reflects the current status accurately
+□ "Confirm resolved" flips status and shows a toast
+□ Dashboard "Assign team" mutates the matching incident
+□ NGO "I Can Help" sheet submits and shows success state
+□ No dead buttons — click every button once and observe a reaction
+□ Loading skeletons appear for 800ms on /updates, /help, /dashboard, /ngo
+□ Empty states render for Active (when filtered) and per-category Help filter with no items
+Mobile integrity
+
+□ No horizontal scroll at 320px
+□ Bottom nav is not overlapped by content (pb-24 on main container)
+□ All tap targets ≥48px
+□ Bottom sheet respects safe area and scrolls internally
+□ Text does not overflow any container
+Content integrity
+
+□ All names, places, and copy are South African and realistic
+□ No placeholder text anywhere
+□ Every toast message is specific and helpful
+14. CLOSING NOTE
+Build only this. Do not add features, screens, animations, dark mode, or complexity. The power of this app is its simplicity: few clicks, more help, help is coming. Every design decision must serve that promise. If a choice adds noise without adding clarity, remove it.
+
+Deliver:
+
+The project source (Next.js app router preferred)
+
+Working navigation across all 6 routes
+
+All 20 custom icons in components/icons.tsx
+
+All 14 components in components/
+
+Seed data in lib/data.ts
+
+Resident flow working end-to-end (report → verify → respond → resolve)
+
+Responder and NGO flows working end-to-end

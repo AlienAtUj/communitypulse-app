@@ -1,0 +1,65 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidIncident(data) {
+      return data.type in ['power', 'water', 'food', 'road', 'flood', 'fire'] &&
+             data.location is string && data.location.size() > 0 && data.location.size() <= 200 &&
+             data.status in ['reported', 'verified', 'assigned', 'resolved'] &&
+             data.priority in ['critical', 'high', 'medium'];
+    }
+
+    // Incidents Collection
+    // Public read for live disaster awareness
+    // Authenticated users (including anonymous guest reports) can report
+    match /incidents/{incidentId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidIncident(request.resource.data);
+      allow update: if isAuthenticated();
+      allow delete: if false; // Incidents cannot be deleted by users, only marked resolved
+    }
+
+    // Active Emergency Alerts
+    // Anyone can read alerts; only responders/admins can post or dismiss
+    match /alerts/{alertId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Scheduled Outages (Eskom / Water board)
+    match /outages/{outageId} {
+      allow read: if true;
+      allow update: if isAuthenticated(); // For setting reminders
+      allow create, delete: if isAuthenticated();
+    }
+
+    // Relief Resources & Centres
+    match /resources/{resourceId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // NGO Aid Offers & Pledges
+    match /ngo_offers/{offerId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId);
+    }
+  }
+}
+

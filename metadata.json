@@ -1,0 +1,6 @@
+{
+  "name": "CommunityPulse",
+  "description": "Multi-Hazard Community Resilience Platform for South Africa. Know early. Report once. Find help. Get services where they are needed most.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
