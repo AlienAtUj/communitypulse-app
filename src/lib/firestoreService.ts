@@ -10,6 +10,7 @@ import {
   increment,
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "./firebase";
+
 import {
   Incident,
   ScheduledOutage,
@@ -17,6 +18,7 @@ import {
   Alert,
   IncidentType,
   IncidentStatus,
+  SEED_INCIDENTS,
 } from "./data";
 
 const LOCAL_STORAGE_KEY_INCIDENTS = "cp_real_incidents";
@@ -52,10 +54,23 @@ export function subscribeToIncidents(
   callback: (incidents: Incident[]) => void
 ): () => void {
   if (!db) {
-    const local = getLocalStorage<Incident[]>(LOCAL_STORAGE_KEY_INCIDENTS, []);
-    callback(local);
-    return () => {};
+  const stored = getLocalStorage<Incident[]>(
+    LOCAL_STORAGE_KEY_INCIDENTS,
+    SEED_INCIDENTS
+  );
+
+  const local = stored.length > 0 ? stored : SEED_INCIDENTS;
+
+  if (
+    window.localStorage.getItem(LOCAL_STORAGE_KEY_INCIDENTS) === null ||
+    stored.length === 0
+  ) {
+    setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, local);
   }
+
+  callback(local);
+  return () => {};
+}
 
   const q = query(collection(db, "incidents"), orderBy("createdAt", "desc"));
   return onSnapshot(
@@ -75,6 +90,7 @@ export function subscribeToIncidents(
           facilities: data.facilities || [],
           time: data.time || "Just now",
           eta: data.eta,
+          resolvedAt: data.resolvedAt,
           description: data.description,
           isMine: Boolean(data.isMine),
         });
@@ -85,7 +101,10 @@ export function subscribeToIncidents(
     },
     (err) => {
       console.warn("Firestore incidents listener error (using cache):", err);
-      const fallback = getLocalStorage<Incident[]>(LOCAL_STORAGE_KEY_INCIDENTS, []);
+      const fallback = getLocalStorage<Incident[]>(
+          LOCAL_STORAGE_KEY_INCIDENTS,
+          SEED_INCIDENTS
+        );
       callback(fallback);
     }
   );
@@ -162,25 +181,43 @@ export async function updateIncidentInDb(
 ): Promise<void> {
   if (db) {
     const ref = doc(db, "incidents", id);
+
     const updates: Record<string, unknown> = {
       status,
       updatedAt: serverTimestamp(),
     };
+
     if (eta !== undefined) {
       updates.eta = eta;
     }
+
+    if (status === "resolved") {
+      updates.resolvedAt = new Date().toISOString();
+    } else {
+      updates.resolvedAt = null;
+    }
+
     await updateDoc(ref, updates);
   } else {
-    const list = getLocalStorage<Incident[]>(LOCAL_STORAGE_KEY_INCIDENTS, []);
+    const list = getLocalStorage<Incident[]>(
+      LOCAL_STORAGE_KEY_INCIDENTS,
+      []
+    );
+
     const updated = list.map((item) =>
       item.id === id
         ? {
             ...item,
             status,
             eta: eta !== undefined ? eta : item.eta,
+            resolvedAt:
+              status === "resolved"
+                ? new Date().toISOString()
+                : undefined,
           }
         : item
     );
+
     setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, updated);
   }
 }

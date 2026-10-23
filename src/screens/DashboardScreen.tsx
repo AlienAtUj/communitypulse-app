@@ -16,6 +16,7 @@ import { BottomSheet } from "../components/BottomSheet";
 import { Input } from "../components/Input";
 import { EmptyState } from "../components/EmptyState";
 import { IconList, IconLocation, IconPeople } from "../components/icons";
+import { IncidentMap } from "../components/IncidentMap";
 
 export function DashboardScreen() {
   const {
@@ -46,6 +47,18 @@ export function DashboardScreen() {
   }, [visitedScreens, markScreenVisited]);
 
   const activeIncidents = incidents.filter((i) => i.status !== "resolved");
+  const highPriorityIncidents = activeIncidents.filter(
+    (i) => i.priority === "high" || i.priority === "critical"
+  );
+  const today = new Date();
+  const resolvedToday = incidents.filter((i) => {
+    if (i.status !== "resolved" || !i.resolvedAt) return false;
+    const resolvedDate = new Date(i.resolvedAt);
+    return !Number.isNaN(resolvedDate.getTime()) &&
+      resolvedDate.getFullYear() === today.getFullYear() &&
+      resolvedDate.getMonth() === today.getMonth() &&
+      resolvedDate.getDate() === today.getDate();
+  }).length;
   const locationGroups = groupIncidentsByLocation(incidents);
 
   const sortedIncidents = sortIncidents(
@@ -55,8 +68,17 @@ export function DashboardScreen() {
   );
 
   const handleAssignTeam = (inc: Incident) => {
-    updateIncidentStatus(inc.id, "assigned", "19:45");
-    showToast("Team assigned. Residents notified.", "success");
+    if (inc.status === "assigned") {
+      showToast("This incident is already assigned.", "info");
+      return;
+    }
+    updateIncidentStatus(inc.id, "assigned");
+    showToast(`Incident ${inc.id} marked as assigned. No external team notification was sent.`, "success");
+  };
+
+  const handleResolveIncident = (inc: Incident) => {
+    updateIncidentStatus(inc.id, "resolved");
+    showToast(`${inc.id} marked as resolved.`, "success");
   };
 
   const handleOpenSendUpdate = (inc: Incident) => {
@@ -71,11 +93,29 @@ export function DashboardScreen() {
       setMessageError("Please enter an update message for residents.");
       return;
     }
-    const count = updateTarget?.affected || 240;
-    setUpdateTarget(null);
-    setUpdateMessage("");
-    setMessageError("");
-    showToast(`Update sent to ${count} residents.`, "success");
+    if (!updateTarget) return;
+
+    const updateRecord = {
+      id: `UPD-${Date.now()}`,
+      incidentId: updateTarget.id,
+      location: updateTarget.location,
+      affectedHouseholds: updateTarget.affected,
+      message: updateMessage.trim(),
+      createdAt: new Date().toISOString(),
+      deliveryStatus: "saved-test-mode",
+    };
+
+    try {
+      const storageKey = "communitypulse_responder_updates";
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
+      window.localStorage.setItem(storageKey, JSON.stringify([updateRecord, ...saved]));
+      setUpdateTarget(null);
+      setUpdateMessage("");
+      setMessageError("");
+      showToast("Update saved in test mode. No SMS or WhatsApp message was sent.", "success");
+    } catch {
+      setMessageError("The update could not be saved in this browser. Please try again.");
+    }
   };
 
   const getAffectedSummary = (inc: Incident) => {
@@ -118,7 +158,7 @@ export function DashboardScreen() {
         <section aria-label="Responder Metrics" className="grid grid-cols-3 gap-2">
           <Card className="p-4 text-center flex flex-col items-center justify-center">
             <span className="text-[24px] font-bold tracking-[-0.01em] leading-[1.2] text-[#111827] tabular-nums">
-              12
+              {activeIncidents.length}
             </span>
             <span className="text-[13px] font-medium uppercase tracking-[0.05em] leading-[1.4] text-[#6B7280] mt-1">
               Active
@@ -127,7 +167,7 @@ export function DashboardScreen() {
 
           <Card className="p-4 text-center flex flex-col items-center justify-center">
             <span className="text-[24px] font-bold tracking-[-0.01em] leading-[1.2] text-[#E4002B] tabular-nums">
-              4
+              {highPriorityIncidents.length}
             </span>
             <span className="text-[13px] font-medium uppercase tracking-[0.05em] leading-[1.4] text-[#6B7280] mt-1">
               High Priority
@@ -136,7 +176,7 @@ export function DashboardScreen() {
 
           <Card className="p-4 text-center flex flex-col items-center justify-center">
             <span className="text-[24px] font-bold tracking-[-0.01em] leading-[1.2] text-[#111827] tabular-nums">
-              8
+              {resolvedToday}
             </span>
             <span className="text-[13px] font-medium uppercase tracking-[0.05em] leading-[1.4] text-[#6B7280] mt-1">
               Resolved Today
@@ -144,68 +184,32 @@ export function DashboardScreen() {
           </Card>
         </section>
 
-        {/* Map placeholder Card */}
-        <section>
-          <Card className="p-4">
-            <div className="relative h-[200px] w-full rounded-[12px] bg-[#F7F8FA] border border-[#E5E7EB] overflow-hidden mb-2">
-              <svg
-                className="absolute inset-0 w-full h-full text-[#E5E7EB]"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <defs>
-                  <pattern
-                    id="responder-map-dots"
-                    width="16"
-                    height="16"
-                    patternUnits="userSpaceOnUse"
-                  >
-                    <circle cx="2" cy="2" r="1.5" fill="currentColor" />
-                  </pattern>
-                </defs>
-                <rect
-                  width="100%"
-                  height="100%"
-                  fill="url(#responder-map-dots)"
-                />
-                {/* Road network lines */}
-                <path
-                  d="M 0 95 L 400 75 M 110 0 L 145 200 M 260 0 L 230 200"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
-              </svg>
+       {/* Interactive incident map */}
+<section>
+  <Card className="p-4">
+    <IncidentMap incidents={incidents} />
 
-              {/* 6 coloured pins drawn as small circles (blue/amber/red) */}
-              <div
-                title="Section A — Critical Flood"
-                className="absolute top-[36px] left-[72px] w-[16px] h-[16px] rounded-full bg-[#E4002B] border-2 border-[#FFFFFF]"
-              />
-              <div
-                title="Section C — High Priority Power"
-                className="absolute top-[82px] left-[156px] w-[16px] h-[16px] rounded-full bg-[#E4002B] border-2 border-[#FFFFFF]"
-              />
-              <div
-                title="Section D — High Priority Water"
-                className="absolute top-[128px] left-[228px] w-[16px] h-[16px] rounded-full bg-[#FF9500] border-2 border-[#FFFFFF]"
-              />
-              <div
-                title="Main Road — High Priority Road"
-                className="absolute top-[60px] left-[265px] w-[16px] h-[16px] rounded-full bg-[#FF9500] border-2 border-[#FFFFFF]"
-              />
-              <div
-                title="Ward 8 — Medium Priority Food"
-                className="absolute top-[144px] left-[105px] w-[16px] h-[16px] rounded-full bg-[#003DA5] border-2 border-[#FFFFFF]"
-              />
-              <div
-                title="Community Hall — Water Tanker Active"
-                className="absolute top-[104px] left-[64px] w-[16px] h-[16px] rounded-full bg-[#003DA5] border-2 border-[#FFFFFF]"
-              />
-            </div>
-            <p className="text-[12px] font-normal leading-[1.4] text-[#6B7280]">
-              Live incident map
-            </p>
-          </Card>
-        </section>
+    <p className="mt-2 text-[12px] font-normal leading-[1.4] text-[#6B7280]">
+      Interactive incident overview. Marker locations are representative
+      test coordinates, not verified incident addresses.
+    </p>
+
+    <div className="mt-3 flex flex-wrap gap-3 text-[12px] text-[#6B7280]">
+      <span className="flex items-center gap-1">
+        <span className="h-3 w-3 rounded-full bg-[#E4002B]" />
+        Critical
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="h-3 w-3 rounded-full bg-[#FF9500]" />
+        High
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="h-3 w-3 rounded-full bg-[#003DA5]" />
+        Medium
+      </span>
+    </div>
+  </Card>
+</section>
 
         {/* INCIDENTS BY LOCATION */}
         <section>
@@ -352,14 +356,24 @@ export function DashboardScreen() {
                     <Button
                       variant="primary"
                       onClick={() => handleAssignTeam(inc)}
+                      disabled={inc.status === "assigned"}
                     >
-                      Assign team
+                      {inc.status === "assigned" ? "Team assigned" : "Assign team"}
                     </Button>
                     <Button
                       variant="secondary"
                       onClick={() => handleOpenSendUpdate(inc)}
                     >
-                      Send update
+                      Draft update
+                    </Button>
+                  </div>
+                  <div className="mt-3">
+                    <Button
+                      variant="danger"
+                      fullWidth
+                      onClick={() => handleResolveIncident(inc)}
+                    >
+                      Mark as resolved
                     </Button>
                   </div>
                 </Card>
@@ -396,14 +410,14 @@ export function DashboardScreen() {
             Send resident update
           </h2>
           <p className="text-[12px] font-normal leading-[1.4] text-[#6B7280] mb-4">
-            Notifies {updateTarget?.affected || 240} households in{" "}
-            {updateTarget?.location || "Section C, Ward 8"} via SMS and WhatsApp
+            Draft an update for {updateTarget?.affected ?? 0} affected households in{" "}
+            {updateTarget?.location || "the selected location"}. In test mode, the message is saved locally and is not delivered by SMS or WhatsApp.
           </p>
 
           <div className="mb-5">
             <Input
               label="UPDATE MESSAGE"
-              placeholder="e.g. Eskom technicians on site, power back by 19:45"
+              placeholder="e.g. Technicians are on site. We will share another update when available."
               value={updateMessage}
               error={messageError}
               onChange={(e) => {
