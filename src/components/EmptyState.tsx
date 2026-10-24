@@ -1,5 +1,4 @@
 import React from "react";
-import { IconCircle } from "./IconCircle";
 import { Button } from "./Button";
 import { IconProps } from "./icons";
 
@@ -18,13 +17,17 @@ export function EmptyState({
   actionLabel,
   onAction,
 }: EmptyStateProps) {
+  const IconComp = icon;
+
   return (
-    <div className="py-12 px-5 flex flex-col items-center justify-center text-center">
-      <IconCircle size="lg" color="grey" icon={icon} className="mb-3" />
-      <h3 className="text-[16px] font-bold leading-[1.4] text-[#111827] mb-1">
+    <div className="py-10 px-5 flex flex-col items-center justify-center text-center">
+      <div className="w-14 h-14 rounded-2xl bg-[#F7F8FA] border border-[#E5E7EB] flex items-center justify-center text-[#003DA5] mb-3.5 shadow-sm">
+        <IconComp size={24} />
+      </div>
+      <h3 className="text-[17px] font-bold leading-[1.4] text-[#111827] mb-1">
         {heading}
       </h3>
-      <p className="text-[15px] font-normal leading-[1.5] text-[#6B7280] max-w-[280px] break-words">
+      <p className="text-[14px] font-normal leading-[1.5] text-[#6B7280] max-w-[280px] break-words">
         {body}
       </p>
       {actionLabel && onAction && (

@@ -3,7 +3,7 @@ import { IncidentType, INCIDENT_CATEGORY_NAMES } from "../lib/data";
 import { useData } from "../context/DataContext";
 import { BottomSheet } from "../components/BottomSheet";
 import { Card } from "../components/Card";
-import { IconCircle } from "../components/IconCircle";
+import { CategoryVisual } from "../components/CategoryVisual";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import {
@@ -105,18 +105,27 @@ export function ReportSheet() {
                     onClick={() => setSelectedType(item.type)}
                     ariaLabel={`Select ${item.label}`}
                     className={[
-                      "p-4 flex flex-col items-center justify-center gap-2 min-h-[88px] text-center",
+                      "p-2.5 flex flex-col gap-2 overflow-hidden transition-all duration-150 cursor-pointer group",
                       isSelected
-                        ? "border-2 border-[#003DA5] bg-[#003DA5]/5"
-                        : "",
+                        ? "border-2 border-[#003DA5] ring-2 ring-[#003DA5]/20 bg-[#003DA5]/5"
+                        : "hover:border-[#003DA5]/40",
                     ]
                       .filter(Boolean)
                       .join(" ")}
                   >
-                    <IconCircle size="md" color="blue" icon={item.icon} />
-                    <span className="text-[15px] font-medium leading-[1.5] text-[#111827] block">
-                      {item.label}
-                    </span>
+                    <CategoryVisual
+                      category={item.type}
+                      variant="banner"
+                      className="h-20 w-full"
+                    />
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[14px] font-bold leading-[1.3] text-[#111827]">
+                        {item.label}
+                      </span>
+                      {isSelected && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#003DA5]" />
+                      )}
+                    </div>
                   </Card>
                 </div>
               );
@@ -137,7 +146,7 @@ export function ReportSheet() {
 
       {step === 2 && (
         <div className="flex flex-col">
-          <div className="mb-5">
+          <div className="mb-4">
             <h2 className="text-[20px] font-bold leading-[1.3] text-[#111827] mb-1">
               Confirm your location
             </h2>
@@ -145,6 +154,15 @@ export function ReportSheet() {
               We use this to match your report to neighbours
             </p>
           </div>
+
+          {selectedType && (
+            <div className="flex items-center gap-2.5 mb-4 p-2 rounded-xl bg-[#F7F8FA] border border-[#E5E7EB]">
+              <CategoryVisual category={selectedType} variant="avatar" />
+              <span className="text-[13px] font-semibold text-[#111827]">
+                Reporting: {INCIDENT_CATEGORY_NAMES[selectedType]} Issue
+              </span>
+            </div>
+          )}
 
           {/* Map-preview card */}
           <div className="mb-4">
@@ -172,7 +190,9 @@ export function ReportSheet() {
                   />
                 </svg>
                 <div className="relative z-10 flex flex-col items-center">
-                  <IconCircle size="md" color="blue" icon={IconLocation} />
+                  <div className="w-10 h-10 rounded-full bg-[#003DA5] text-[#FFFFFF] flex items-center justify-center shadow-lg ring-4 ring-[#003DA5]/20 animate-bounce">
+                    <IconLocation size={20} />
+                  </div>
                 </div>
               </div>
               <div className="px-4 py-3 border-t border-[#E5E7EB] bg-[#FFFFFF] flex items-center justify-between">
@@ -253,12 +273,15 @@ export function ReportSheet() {
                   : "border-[#E5E7EB]",
               ].join(" ")}
             >
-              <IconCircle
-                size="md"
-                color={photoAdded ? "green" : "grey"}
-                icon={photoAdded ? IconCheck : IconReport}
-                className="mb-2"
-              />
+              <div
+                className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 transition-colors ${
+                  photoAdded
+                    ? "bg-[#00A651]/10 text-[#00A651]"
+                    : "bg-[#F3F4F6] text-[#6B7280]"
+                }`}
+              >
+                {photoAdded ? <IconCheck size={22} /> : <IconReport size={22} />}
+              </div>
               <p className="text-[15px] font-normal leading-[1.5] text-[#111827]">
                 {photoAdded ? "Photo attached (ward8_site.jpg)" : "Add a photo"}
               </p>
@@ -286,7 +309,9 @@ export function ReportSheet() {
 
       {step === 4 && (
         <div className="py-6 flex flex-col items-center text-center">
-          <IconCircle size="lg" color="green" icon={IconCheck} className="mb-4" />
+          <div className="w-16 h-16 rounded-2xl bg-[#00A651]/10 text-[#00A651] border border-[#00A651]/20 flex items-center justify-center mb-4 shadow-sm">
+            <IconCheck size={32} />
+          </div>
           <h1 className="text-[24px] font-bold tracking-[-0.01em] leading-[1.2] text-[#111827] mb-2">
             Report sent
           </h1>

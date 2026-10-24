@@ -1,8 +1,8 @@
 import React from "react";
 import { Incident, IncidentType, INCIDENT_TYPE_LABELS } from "../lib/data";
 import { Card } from "./Card";
-import { IconCircle, IconCircleColor } from "./IconCircle";
 import { StatusBadge } from "./StatusBadge";
+import { CategoryVisual } from "./CategoryVisual";
 import {
   IconPower,
   IconWater,
@@ -28,18 +28,16 @@ export const INCIDENT_ICONS: Record<IncidentType, React.ComponentType<IconProps>
   fire: IconFire,
 };
 
-export const INCIDENT_COLORS: Record<IncidentType, IconCircleColor> = {
+export const INCIDENT_COLORS = {
   power: "amber",
   water: "blue",
   food: "green",
   road: "amber",
   flood: "red",
   fire: "red",
-};
+} as const;
 
 export function IncidentCard({ incident, onClick }: IncidentCardProps) {
-  const IconComp = INCIDENT_ICONS[incident.type];
-  const color = INCIDENT_COLORS[incident.type];
   const typeLabel = INCIDENT_TYPE_LABELS[incident.type];
 
   return (
@@ -50,9 +48,11 @@ export function IncidentCard({ incident, onClick }: IncidentCardProps) {
         incident.priority === "critical" ? "border-l-4 border-l-[#E4002B]" : ""
       }
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <IconCircle size="md" color={color} icon={IconComp} />
+      <div className="flex items-center justify-between gap-3.5">
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          {/* Real Photo Thumbnail */}
+          <CategoryVisual category={incident.type} variant="thumbnail" />
+
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2 mb-0.5">
               <h3 className="text-[16px] font-bold leading-[1.4] text-[#111827] truncate">
@@ -63,7 +63,7 @@ export function IncidentCard({ incident, onClick }: IncidentCardProps) {
             <p className="text-[12px] font-normal leading-[1.4] text-[#6B7280] truncate">
               {incident.location} · {incident.time}
             </p>
-            <p className="text-[12px] font-medium leading-[1.4] text-[#003DA5] mt-1">
+            <p className="text-[12px] font-medium leading-[1.4] text-[#003DA5] mt-1 truncate">
               {incident.confirmations} neighbours reported · {incident.affected} households
               {incident.eta ? ` · ETA ${incident.eta}` : ""}
             </p>

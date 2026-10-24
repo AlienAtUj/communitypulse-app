@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useData } from "../context/DataContext";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { Card } from "../components/Card";
-import { IconCircle } from "../components/IconCircle";
+import { CategoryVisual } from "../components/CategoryVisual";
 import { Button } from "../components/Button";
 import { AlertBanner } from "../components/AlertBanner";
 import { BottomNav } from "../components/BottomNav";
@@ -83,12 +83,8 @@ export function SchedulesScreen() {
 
               return (
                 <Card key={outage.id}>
-                  <div className="flex items-start gap-3 mb-3">
-                    <IconCircle
-                      size="md"
-                      color={isPower ? "amber" : "blue"}
-                      icon={isPower ? IconPower : IconWater}
-                    />
+                  <div className="flex items-start gap-3.5 mb-3">
+                    <CategoryVisual category={outage.type} variant="thumbnail" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <span

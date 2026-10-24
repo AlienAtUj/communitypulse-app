@@ -1,7 +1,7 @@
 import React from "react";
 import { Incident, INCIDENT_TYPE_LABELS } from "../lib/data";
 import { BottomSheet } from "../components/BottomSheet";
-import { IconCircle } from "../components/IconCircle";
+import { CategoryVisual } from "../components/CategoryVisual";
 import { StatusBadge } from "../components/StatusBadge";
 import { SectionLabel } from "../components/SectionLabel";
 import { Card } from "../components/Card";
@@ -78,10 +78,15 @@ export function IncidentDetailSheet({
       onClose={onClose}
       title={`${typeLabel} details`}
     >
+      {/* Real Category Hero Banner */}
+      <div className="mb-4">
+        <CategoryVisual category={incident.type} variant="hero" />
+      </div>
+
       {/* Header row */}
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-3 min-w-0">
-          <IconCircle size="md" color={color} icon={IconComp} />
+          <CategoryVisual category={incident.type} variant="avatar" />
           <h2 className="text-[20px] font-bold leading-[1.3] text-[#111827] break-words">
             {typeLabel}
           </h2>
@@ -183,7 +188,9 @@ export function IncidentDetailSheet({
         <div className="mb-6">
           <Card className="bg-[#F7F8FA]">
             <div className="flex items-center gap-3">
-              <IconCircle size="md" color="blue" icon={IconTruck} />
+              <div className="w-12 h-12 rounded-xl bg-[#003DA5]/10 text-[#003DA5] border border-[#003DA5]/20 flex items-center justify-center shrink-0">
+                <IconTruck size={22} />
+              </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[15px] font-medium leading-[1.5] text-[#111827]">
                   Repair team assigned. ETA {incident.eta || "19:45"}.

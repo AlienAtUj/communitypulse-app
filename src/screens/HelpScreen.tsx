@@ -3,6 +3,7 @@ import { useData } from "../context/DataContext";
 import { Resource, filterResourcesByCategory } from "../lib/data";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ResourceCard } from "../components/ResourceCard";
+import { CategoryVisual } from "../components/CategoryVisual";
 import { EmptyState } from "../components/EmptyState";
 import { Card } from "../components/Card";
 import { BottomSheet } from "../components/BottomSheet";
@@ -122,6 +123,10 @@ export function HelpScreen() {
       >
         {selectedResource && (
           <div className="flex flex-col">
+            <div className="mb-4">
+              <CategoryVisual category={selectedResource.type} variant="hero" />
+            </div>
+
             <div className="flex items-start justify-between gap-3 mb-3">
               <h2 className="text-[20px] font-bold leading-[1.3] text-[#111827] break-words">
                 {selectedResource.name}

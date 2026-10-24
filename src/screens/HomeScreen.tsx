@@ -9,7 +9,7 @@ import { ScreenHeader } from "../components/ScreenHeader";
 import { AlertBanner } from "../components/AlertBanner";
 import { SectionLabel } from "../components/SectionLabel";
 import { Card } from "../components/Card";
-import { IconCircle } from "../components/IconCircle";
+import { CategoryVisual } from "../components/CategoryVisual";
 import { IncidentCard } from "../components/IncidentCard";
 import { HazardFilter } from "../components/HazardFilter";
 import { EmptyState } from "../components/EmptyState";
@@ -110,9 +110,9 @@ export function HomeScreen() {
               onClick={() => navigate("/report")}
               ariaLabel="Report a Problem: Power, water, food, roads, floods"
             >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <IconCircle size="md" color="blue" icon={IconReport} />
+              <div className="flex items-center justify-between gap-3.5">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <CategoryVisual category="action-report" variant="thumbnail" />
                   <div className="min-w-0">
                     <h3 className="text-[16px] font-bold leading-[1.4] text-[#111827]">
                       Report a Problem
@@ -131,9 +131,9 @@ export function HomeScreen() {
               onClick={() => navigate("/updates")}
               ariaLabel={`What's Happening: ${activeIncidentsCount} active incidents and scheduled outages`}
             >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <IconCircle size="md" color="blue" icon={IconList} />
+              <div className="flex items-center justify-between gap-3.5">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <CategoryVisual category="action-schedules" variant="thumbnail" />
                   <div className="min-w-0">
                     <h3 className="text-[16px] font-bold leading-[1.4] text-[#111827]">
                       What's Happening
@@ -152,9 +152,9 @@ export function HomeScreen() {
               onClick={() => navigate("/help")}
               ariaLabel="Find Help: Water, food, charging, clinics"
             >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <IconCircle size="md" color="blue" icon={IconHelp} />
+              <div className="flex items-center justify-between gap-3.5">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <CategoryVisual category="action-help" variant="thumbnail" />
                   <div className="min-w-0">
                     <h3 className="text-[16px] font-bold leading-[1.4] text-[#111827]">
                       Find Help

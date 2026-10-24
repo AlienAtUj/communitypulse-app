@@ -4,7 +4,7 @@ import { NgoNeed, getAggregatedNeeds } from "../lib/data";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { SectionLabel } from "../components/SectionLabel";
 import { Card } from "../components/Card";
-import { IconCircle } from "../components/IconCircle";
+import { CategoryVisual } from "../components/CategoryVisual";
 import { StatusBadge } from "../components/StatusBadge";
 import { Button } from "../components/Button";
 import { BottomSheet } from "../components/BottomSheet";
@@ -126,9 +126,9 @@ export function NgoScreen() {
 
                 return (
                   <Card key={need.type}>
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <IconCircle size="md" color={color} icon={IconComp} />
+                    <div className="flex items-start justify-between gap-3.5 mb-4">
+                      <div className="flex items-start gap-3.5 min-w-0">
+                        <CategoryVisual category={need.type} variant="thumbnail" />
                         <div className="min-w-0">
                           <h3 className="text-[16px] font-bold leading-[1.4] text-[#111827]">
                             {need.label}
