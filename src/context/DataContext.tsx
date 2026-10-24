@@ -285,22 +285,27 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateIncidentStatus = useCallback(
-    (id: string, status: IncidentStatus, eta?: string) => {
-      updateIncidentInDb(id, status, eta);
-      setIncidents((prev) =>
-        prev.map((inc) =>
-          inc.id === id
-            ? {
-                ...inc,
-                status,
-                eta: eta !== undefined ? eta : inc.eta || (status === "assigned" ? "19:45" : undefined),
-              }
-            : inc
-        )
-      );
-    },
-    []
-  );
+  (id: string, status: IncidentStatus, eta?: string) => {
+    updateIncidentInDb(id, status, eta);
+
+    setIncidents((prev) =>
+      prev.map((inc) =>
+        inc.id === id
+          ? {
+              ...inc,
+              status,
+              eta: eta !== undefined ? eta : inc.eta,
+              resolvedAt:
+                status === "resolved"
+                  ? new Date().toISOString()
+                  : undefined,
+            }
+          : inc
+      )
+    );
+  },
+  []
+);
 
   const confirmIncident = useCallback((id: string) => {
     confirmIncidentInDb(id);

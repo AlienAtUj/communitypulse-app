@@ -19,6 +19,7 @@ export interface Incident {
   facilities?: string[];
   time: string;        // e.g. "17:30"
   eta?: string;        // e.g. "19:45"
+  resolvedAt?: string;
   description?: string;
   isMine?: boolean;
 }
