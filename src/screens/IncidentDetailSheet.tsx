@@ -8,7 +8,7 @@ import { SectionLabel } from "../components/SectionLabel";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { INCIDENT_ICONS, INCIDENT_COLORS } from "../components/IncidentCard";
-import { IconCheck, IconTruck, IconBell } from "../components/icons";
+import { IconCheck, IconTruck, IconBell, IconLocation } from "../components/icons";
 
 export interface IncidentDetailSheetProps {
   incident: Incident | null;
@@ -104,10 +104,34 @@ export function IncidentDetailSheet({
         <StatusBadge status={incident.status} />
       </div>
 
-      {/* Meta */}
-      <p className="text-[12px] font-normal leading-[1.4] text-[#6B7280] mb-4 break-words">
-        {incident.location} · Reported {incident.time} · {incident.confirmations} neighbours confirmed
-      </p>
+      {/* Location & Directions Row */}
+      <div className="flex flex-col gap-2 mb-4">
+        <p className="text-[13px] font-medium leading-[1.4] text-[#111827] break-words">
+          {incident.location}
+        </p>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-[12px] text-[#6B7280]">
+            Reported {incident.time} · {incident.confirmations} neighbours confirmed
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const dest = incident.coordinates
+                ? `${incident.coordinates.lat},${incident.coordinates.lng}`
+                : encodeURIComponent(incident.location);
+              window.open(
+                `https://www.google.com/maps/dir/?api=1&destination=${dest}`,
+                "_blank",
+                "noopener,noreferrer"
+              );
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold text-[#003DA5] bg-[#003DA5]/5 hover:bg-[#003DA5]/10 border border-[#003DA5]/20 cursor-pointer transition-colors"
+          >
+            <IconLocation size={14} className="text-[#003DA5]" />
+            <span>Directions in Maps</span>
+          </button>
+        </div>
+      </div>
 
       {/* Description */}
       {incident.description && (

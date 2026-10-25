@@ -3,6 +3,7 @@ import { useData } from "../context/DataContext";
 import {
   HazardCategory,
   filterIncidentsByHazard,
+  filterNearbyIncidents,
   sortIncidents,
 } from "../lib/data";
 import { ScreenHeader } from "../components/ScreenHeader";
@@ -39,19 +40,29 @@ export function HomeScreen() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isDbStatusOpen, setIsDbStatusOpen] = useState(false);
 
-  const activeIncidentsCount = incidents.filter(
+  // Filter so residents only see incidents near them or reported by them
+  const nearbyIncidents = filterNearbyIncidents(incidents, currentUser, {
+    scope: "nearby",
+  });
+
+  const activeIncidentsCount = nearbyIncidents.filter(
     (inc) => inc.status !== "resolved"
   ).length;
 
   const activeFiltered = sortIncidents(
     filterIncidentsByHazard(
-      incidents.filter((inc) => inc.status !== "resolved"),
+      nearbyIncidents.filter((inc) => inc.status !== "resolved"),
       selectedHazard
     )
   );
 
   const myRecentReports = filterIncidentsByHazard(
-    incidents.filter((inc) => inc.isMine),
+    incidents.filter(
+      (inc) =>
+        inc.isMine ||
+        (currentUser?.uid &&
+          (inc as unknown as { userId?: string }).userId === currentUser.uid)
+    ),
     selectedHazard
   ).slice(0, 2);
 
@@ -62,9 +73,13 @@ export function HomeScreen() {
         : activeFiltered.slice(0, 2)
       : activeFiltered;
 
+  const hour = new Date().getHours();
+  const timeGreeting =
+    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
   const greetingName = currentUser?.displayName
     ? currentUser.displayName.split(" ")[0]
-    : "Thabo";
+    : "Neighbor";
 
   const locationChip = (
     <button
@@ -75,7 +90,7 @@ export function HomeScreen() {
     >
       <IconLocation size={16} className="text-[#003DA5] shrink-0" />
       <span className="text-[12px] font-medium leading-[1.4] text-[#111827] whitespace-nowrap">
-        {currentUser?.ward || "Section C, Ward 8"}
+        {currentUser?.ward || "Set your location"}
       </span>
     </button>
   );
@@ -83,7 +98,7 @@ export function HomeScreen() {
   return (
     <div className="mx-auto w-full max-w-[420px] min-h-screen bg-[#FFFFFF] flex flex-col pb-24">
       <ScreenHeader
-        title={`Good morning, ${greetingName}`}
+        title={`${timeGreeting}, ${greetingName}`}
         isDisplay
         showLogo
         onLogoClick={() => setIsAuthOpen(true)}
@@ -170,12 +185,16 @@ export function HomeScreen() {
           </div>
         </section>
 
-        {/* Section: YOUR RECENT REPORTS + Simple 4-Button Hazard Filter */}
+        {/* Section: YOUR RECENT REPORTS & NEARBY */}
         <section>
           <SectionLabel>
             {selectedHazard === "all"
-              ? "YOUR RECENT REPORTS"
-              : "INCIDENTS NEARBY"}
+              ? myRecentReports.length > 0
+                ? "YOUR REPORTS & NEARBY"
+                : currentUser?.ward
+                ? `INCIDENTS NEAR ${currentUser.ward.toUpperCase()}`
+                : "INCIDENTS NEAR YOU"
+              : "INCIDENTS NEAR YOU"}
           </SectionLabel>
 
           <div className="mb-3">
@@ -201,24 +220,26 @@ export function HomeScreen() {
               <EmptyState
                 icon={IconReport}
                 heading={
-                  selectedHazard === "all"
-                    ? "No reports yet"
-                    : "No matching incidents"
+                  selectedHazard !== "all"
+                    ? "No matching incidents"
+                    : "All clear near you"
                 }
                 body={
-                  selectedHazard === "all"
-                    ? "Tap Report a Problem above to report a disruption."
-                    : "No active incidents for this hazard type right now."
+                  selectedHazard !== "all"
+                    ? "No active incidents for this hazard type in your area."
+                    : currentUser?.ward
+                    ? `No active disruptions reported near ${currentUser.ward}. Tap Report a Problem to log a local issue.`
+                    : "No active disruptions reported near you. Tap Report a Problem to log a local issue."
                 }
                 actionLabel={
-                  selectedHazard === "all"
-                    ? "Report a Problem"
-                    : "Show All"
+                  selectedHazard !== "all"
+                    ? "Show All Types"
+                    : "Report a Problem"
                 }
                 onAction={() =>
-                  selectedHazard === "all"
-                    ? navigate("/report")
-                    : setSelectedHazard("all")
+                  selectedHazard !== "all"
+                    ? setSelectedHazard("all")
+                    : navigate("/report")
                 }
               />
             </Card>
