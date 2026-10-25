@@ -3,14 +3,16 @@ import {
   doc,
   setDoc,
   updateDoc,
+  deleteDoc,
   getDocs,
   onSnapshot,
   query,
   orderBy,
+  limit,
   serverTimestamp,
   increment,
 } from "firebase/firestore";
-import { db, isFirebaseConfigured } from "./firebase";
+import { db, auth, isFirebaseConfigured } from "./firebase";
 import {
   Incident,
   ScheduledOutage,
@@ -18,10 +20,7 @@ import {
   Alert,
   IncidentType,
   IncidentStatus,
-  SEED_INCIDENTS,
-  SEED_SCHEDULED_OUTAGES,
   SEED_RESOURCES,
-  ACTIVE_ALERT,
 } from "./data";
 
 const LOCAL_STORAGE_KEY_INCIDENTS = "cp_real_incidents";
@@ -53,7 +52,8 @@ function setLocalStorage<T>(key: string, value: T): void {
 let seedingPromise: Promise<void> | null = null;
 
 /**
- * Automatically seeds the live Firestore database collections with initial real data if empty.
+ * Initializes verified South African emergency relief services into Firestore if empty.
+ * NOTE: Mock dummy incidents, mock outages, and fake alerts are NEVER auto-seeded.
  */
 export async function seedLiveDatabaseIfEmpty(): Promise<void> {
   if (!db) return;
@@ -61,52 +61,87 @@ export async function seedLiveDatabaseIfEmpty(): Promise<void> {
 
   seedingPromise = (async () => {
     try {
-      const snap = await getDocs(collection(db, "incidents"));
+      const snap = await getDocs(collection(db, "resources"));
       if (snap.empty) {
-        console.log("Seeding fresh Firestore database with initial community data...");
-
-        // Seed Incidents
-        for (const inc of SEED_INCIDENTS) {
-          await setDoc(doc(db, "incidents", inc.id), {
-            ...inc,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        }
-
-        // Seed Scheduled Outages
-        for (const outage of SEED_SCHEDULED_OUTAGES) {
-          await setDoc(doc(db, "outages", outage.id), {
-            ...outage,
-            createdAt: serverTimestamp(),
-          });
-        }
-
-        // Seed Resources
+        console.log("Initializing verified community emergency resources...");
         for (const res of SEED_RESOURCES) {
           await setDoc(doc(db, "resources", res.id), {
             ...res,
             createdAt: serverTimestamp(),
           });
         }
-
-        // Seed Active Alert
-        if (ACTIVE_ALERT) {
-          await setDoc(doc(db, "alerts", ACTIVE_ALERT.id), {
-            ...ACTIVE_ALERT,
-            active: true,
-            createdAt: serverTimestamp(),
-          });
-        }
-
-        console.log("Firestore database initialized successfully with live records!");
       }
     } catch (e) {
-      console.warn("Notice: Firestore seeding check:", e);
+      console.warn("Notice: Resource init check:", e);
     }
   })();
 
   return seedingPromise;
+}
+
+/**
+ * Purges any leftover legacy mock data (INC-001..006, SCH-001..005, ALERT-001, RES-001..005)
+ * from both Firestore and local browser storage so only real community data exists.
+ */
+export async function purgeMockDataFromDb(): Promise<{ purgedCount: number }> {
+  let count = 0;
+
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY_INCIDENTS);
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY_OUTAGES);
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY_ALERT);
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY_NGO);
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY_RESOURCES);
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!db) return { purgedCount: 0 };
+
+  const mockIncidentIds = ["INC-001", "INC-002", "INC-003", "INC-004", "INC-005", "INC-006"];
+  const mockOutageIds = ["SCH-001", "SCH-002", "SCH-003", "SCH-004", "SCH-005"];
+  const mockAlertIds = ["ALERT-001"];
+  const mockResourceIds = ["RES-001", "RES-002", "RES-003", "RES-004", "RES-005"];
+
+  for (const id of mockIncidentIds) {
+    try {
+      await deleteDoc(doc(db, "incidents", id));
+      count++;
+    } catch {
+      // document may not exist
+    }
+  }
+
+  for (const id of mockOutageIds) {
+    try {
+      await deleteDoc(doc(db, "outages", id));
+      count++;
+    } catch {
+      // document may not exist
+    }
+  }
+
+  for (const id of mockAlertIds) {
+    try {
+      await deleteDoc(doc(db, "alerts", id));
+      count++;
+    } catch {
+      // document may not exist
+    }
+  }
+
+  for (const id of mockResourceIds) {
+    try {
+      await deleteDoc(doc(db, "resources", id));
+      count++;
+    } catch {
+      // document may not exist
+    }
+  }
+
+  return { purgedCount: count };
 }
 
 /**
@@ -118,16 +153,20 @@ export function subscribeToIncidents(
   if (!db) {
     const local = getLocalStorage<Incident[]>(
       LOCAL_STORAGE_KEY_INCIDENTS,
-      SEED_INCIDENTS
+      []
     );
     callback(local);
     return () => {};
   }
 
-  // Trigger seed check if brand new database
+  // Trigger resource verification if brand new database
   seedLiveDatabaseIfEmpty();
 
-  const q = query(collection(db, "incidents"), orderBy("createdAt", "desc"));
+  const q = query(
+    collection(db, "incidents"),
+    orderBy("createdAt", "desc"),
+    limit(100)
+  );
   return onSnapshot(
     q,
     (snapshot) => {
@@ -150,6 +189,8 @@ export function subscribeToIncidents(
           latestUpdate: data.latestUpdate,
           latestUpdateBy: data.latestUpdateBy,
           isMine: Boolean(data.isMine),
+          coordinates: data.coordinates,
+          accuracy: data.accuracy ? Number(data.accuracy) : undefined,
         });
       });
 
@@ -160,7 +201,7 @@ export function subscribeToIncidents(
       console.warn("Firestore incidents listener error (using cache):", err);
       const fallback = getLocalStorage<Incident[]>(
         LOCAL_STORAGE_KEY_INCIDENTS,
-        SEED_INCIDENTS
+        []
       );
       callback(fallback);
     }
@@ -176,9 +217,20 @@ export async function createIncidentInDb(
     location: string;
     landmark?: string;
     description?: string;
+    coordinates?: { lat: number; lng: number };
+    accuracy?: number;
   },
   userId?: string
 ): Promise<string> {
+  // Verified account check: guest reporting is disabled to prevent false updates
+  const activeUser = auth?.currentUser;
+  const effectiveUserId = activeUser?.uid || userId;
+  if (!effectiveUserId || activeUser?.isAnonymous) {
+    throw new Error(
+      "A verified registered account is required to report incidents. Guest reporting is disabled to prevent false updates."
+    );
+  }
+
   const now = new Date();
   const hours = String(now.getHours()).padStart(2, "0");
   const mins = String(now.getMinutes()).padStart(2, "0");
@@ -187,6 +239,12 @@ export async function createIncidentInDb(
   const fullLocation = report.landmark?.trim()
     ? `${report.landmark.trim()}, ${report.location}`
     : report.location;
+
+  const safeLocation = (fullLocation.trim() || "Ward 8").slice(0, 190);
+  const safeDescription = (
+    report.description?.trim() ||
+    "Reported by resident via CommunityPulse mobile."
+  ).slice(0, 800);
 
   const newId = `INC-${Date.now().toString().slice(-6)}`;
 
@@ -197,7 +255,7 @@ export async function createIncidentInDb(
   } = {
     id: newId,
     type: report.type,
-    location: fullLocation,
+    location: safeLocation,
     affected: 1,
     confirmations: 1,
     status: "reported",
@@ -208,11 +266,11 @@ export async function createIncidentInDb(
         ? ["Clinic fridge"]
         : ["Local area"],
     time: timeStr,
-    description:
-      report.description?.trim() ||
-      "Reported by resident via CommunityPulse mobile.",
+    description: safeDescription,
     isMine: true,
-    userId: userId || "anonymous",
+    coordinates: report.coordinates,
+    accuracy: report.accuracy,
+    userId: effectiveUserId || "anonymous",
     createdAt: db ? serverTimestamp() : new Date().toISOString(),
     updatedAt: db ? serverTimestamp() : new Date().toISOString(),
   };
@@ -222,7 +280,7 @@ export async function createIncidentInDb(
   } else {
     const list = getLocalStorage<Incident[]>(
       LOCAL_STORAGE_KEY_INCIDENTS,
-      SEED_INCIDENTS
+      []
     );
     const updated = [incidentData as Incident, ...list];
     setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, updated);
@@ -255,7 +313,7 @@ export async function updateIncidentInDb(
   } else {
     const list = getLocalStorage<Incident[]>(
       LOCAL_STORAGE_KEY_INCIDENTS,
-      SEED_INCIDENTS
+      []
     );
     const updated = list.map((item) =>
       item.id === id
@@ -284,7 +342,7 @@ export async function confirmIncidentInDb(id: string): Promise<void> {
   } else {
     const list = getLocalStorage<Incident[]>(
       LOCAL_STORAGE_KEY_INCIDENTS,
-      SEED_INCIDENTS
+      []
     );
     const updated = list.map((item) =>
       item.id === id ? { ...item, confirmations: (item.confirmations || 0) + 1 } : item
@@ -318,7 +376,7 @@ export function subscribeToAlerts(
   callback: (alert: Alert | null) => void
 ): () => void {
   if (!db) {
-    callback(getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, ACTIVE_ALERT));
+    callback(getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, null));
     return () => {};
   }
 
@@ -340,7 +398,7 @@ export function subscribeToAlerts(
       callback(found);
     },
     () => {
-      callback(getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, ACTIVE_ALERT));
+      callback(getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, null));
     }
   );
 }
@@ -392,7 +450,7 @@ export function subscribeToOutages(
     callback(
       getLocalStorage<ScheduledOutage[]>(
         LOCAL_STORAGE_KEY_OUTAGES,
-        SEED_SCHEDULED_OUTAGES
+        []
       )
     );
     return () => {};
@@ -422,7 +480,7 @@ export function subscribeToOutages(
       callback(
         getLocalStorage<ScheduledOutage[]>(
           LOCAL_STORAGE_KEY_OUTAGES,
-          SEED_SCHEDULED_OUTAGES
+          []
         )
       );
     }
@@ -447,7 +505,7 @@ export async function createOutageInDb(
   } else {
     const list = getLocalStorage<ScheduledOutage[]>(
       LOCAL_STORAGE_KEY_OUTAGES,
-      SEED_SCHEDULED_OUTAGES
+      []
     );
     setLocalStorage(LOCAL_STORAGE_KEY_OUTAGES, [data as ScheduledOutage, ...list]);
   }
@@ -470,7 +528,7 @@ export async function toggleOutageReminderInDb(
   } else {
     const list = getLocalStorage<ScheduledOutage[]>(
       LOCAL_STORAGE_KEY_OUTAGES,
-      SEED_SCHEDULED_OUTAGES
+      []
     );
     const updated = list.map((item) =>
       item.id === id ? { ...item, reminderSet } : item
@@ -506,6 +564,9 @@ export function subscribeToResources(
           hours: data.hours || "",
           status: data.status || "open",
           updated: data.updated || "Just now",
+          address: data.address || undefined,
+          phone: data.phone || undefined,
+          coordinates: data.coordinates || undefined,
         });
       });
       setLocalStorage(LOCAL_STORAGE_KEY_RESOURCES, list);

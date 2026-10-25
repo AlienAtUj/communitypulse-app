@@ -1,7 +1,6 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signInAnonymously,
   signOut,
   updateProfile,
   onAuthStateChanged,
@@ -15,6 +14,7 @@ export interface UserProfile {
   email: string | null;
   displayName: string | null;
   ward?: string;
+  coordinates?: { lat: number; lng: number };
   role?: "resident" | "responder" | "ngo" | "admin";
   isAnonymous?: boolean;
   createdAt?: unknown;
@@ -27,7 +27,8 @@ export async function signUpUser(
   email: string,
   pass: string,
   displayName: string,
-  ward: string = "Section C, Ward 8"
+  ward?: string,
+  coordinates?: { lat: number; lng: number }
 ): Promise<UserProfile> {
   if (!auth) {
     // Fallback profile if Firebase credentials are pending
@@ -35,7 +36,8 @@ export async function signUpUser(
       uid: `local-${Date.now()}`,
       email,
       displayName,
-      ward,
+      ward: ward || undefined,
+      coordinates,
       role: "resident",
       isAnonymous: false,
     };
@@ -51,8 +53,9 @@ export async function signUpUser(
   const profile: UserProfile = {
     uid: user.uid,
     email: user.email,
-    displayName: displayName || user.email?.split("@")[0] || "Neighbor",
-    ward,
+    displayName: displayName || user.email?.split("@")[0] || "Resident",
+    ward: ward?.trim() || undefined,
+    coordinates,
     role: "resident",
     isAnonymous: false,
     createdAt: serverTimestamp(),
@@ -67,6 +70,30 @@ export async function signUpUser(
   }
 
   return profile;
+}
+
+/**
+ * Update user location and coordinates in Firestore.
+ */
+export async function updateUserLocationInDb(
+  uid: string,
+  ward: string,
+  coordinates?: { lat: number; lng: number }
+): Promise<void> {
+  if (db) {
+    try {
+      const data: Record<string, unknown> = {
+        ward: ward.trim(),
+        updatedAt: serverTimestamp(),
+      };
+      if (coordinates) {
+        data.coordinates = coordinates;
+      }
+      await setDoc(doc(db, "users", uid), data, { merge: true });
+    } catch (err) {
+      console.warn("Could not update user location in Firestore:", err);
+    }
+  }
 }
 
 /**
@@ -87,8 +114,9 @@ export async function signInUser(email: string, pass: string): Promise<UserProfi
   const credential = await signInWithEmailAndPassword(auth, email, pass);
   const user = credential.user;
 
-  let ward = "Section C, Ward 8";
+  let ward: string | undefined = undefined;
   let role: UserProfile["role"] = "resident";
+  let coordinates: { lat: number; lng: number } | undefined = undefined;
 
   if (db) {
     try {
@@ -97,6 +125,7 @@ export async function signInUser(email: string, pass: string): Promise<UserProfi
         const data = snap.data();
         if (data.ward) ward = data.ward;
         if (data.role) role = data.role;
+        if (data.coordinates) coordinates = data.coordinates;
       }
     } catch (err) {
       console.warn("Could not fetch user profile from Firestore:", err);
@@ -106,40 +135,15 @@ export async function signInUser(email: string, pass: string): Promise<UserProfi
   return {
     uid: user.uid,
     email: user.email,
-    displayName: user.displayName || user.email?.split("@")[0] || "Neighbor",
+    displayName: user.displayName || user.email?.split("@")[0] || "Resident",
     ward,
+    coordinates,
     role,
     isAnonymous: user.isAnonymous,
   };
 }
 
-/**
- * Sign in anonymously for zero-friction disaster reporting.
- */
-export async function signInGuestUser(): Promise<UserProfile> {
-  if (!auth) {
-    return {
-      uid: "guest-user",
-      email: null,
-      displayName: "Guest Resident",
-      ward: "Section C, Ward 8",
-      role: "resident",
-      isAnonymous: true,
-    };
-  }
 
-  const credential = await signInAnonymously(auth);
-  const user = credential.user;
-
-  return {
-    uid: user.uid,
-    email: null,
-    displayName: "Guest Resident",
-    ward: "Section C, Ward 8",
-    role: "resident",
-    isAnonymous: true,
-  };
-}
 
 /**
  * Sign out the currently authenticated user.
@@ -167,8 +171,9 @@ export function subscribeToAuth(
       return;
     }
 
-    let ward = "Section C, Ward 8";
+    let ward: string | undefined = undefined;
     let role: UserProfile["role"] = "resident";
+    let coordinates: { lat: number; lng: number } | undefined = undefined;
 
     if (db) {
       try {
@@ -177,6 +182,7 @@ export function subscribeToAuth(
           const data = snap.data();
           if (data.ward) ward = data.ward;
           if (data.role) role = data.role;
+          if (data.coordinates) coordinates = data.coordinates;
         }
       } catch (e) {
         console.warn("Error fetching user profile:", e);
@@ -188,6 +194,7 @@ export function subscribeToAuth(
       email: user.email,
       displayName: user.displayName || user.email?.split("@")[0] || "Resident",
       ward,
+      coordinates,
       role,
       isAnonymous: user.isAnonymous,
     });

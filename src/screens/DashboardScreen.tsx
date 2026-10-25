@@ -228,7 +228,7 @@ export function DashboardScreen() {
                 </Card>
               ))}
             </div>
-          ) : (
+          ) : locationGroups.length > 0 ? (
             <div className="flex flex-col gap-3">
               {locationGroups.map((group) => {
                 const isSelected = selectedLocation === group.location;
@@ -273,6 +273,14 @@ export function DashboardScreen() {
                 );
               })}
             </div>
+          ) : (
+            <Card>
+              <EmptyState
+                icon={IconLocation}
+                heading="No active incident zones"
+                body="All municipal sectors are currently running normally."
+              />
+            </Card>
           )}
         </section>
 
@@ -396,8 +404,8 @@ export function DashboardScreen() {
             Send resident update
           </h2>
           <p className="text-[12px] font-normal leading-[1.4] text-[#6B7280] mb-4">
-            Draft an update for {updateTarget?.affected ?? 0} affected households in{" "}
-            {updateTarget?.location || "the selected location"}. In test mode, the message is saved locally and is not delivered by SMS or WhatsApp.
+            Draft an official update for {updateTarget?.affected ?? 0} affected households in{" "}
+            {updateTarget?.location || "the selected location"}. The update will be published live to resident dashboards.
           </p>
 
           <div className="mb-5">

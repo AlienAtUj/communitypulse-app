@@ -24,6 +24,8 @@ export interface Incident {
   latestUpdate?: string;
   latestUpdateBy?: string;
   isMine?: boolean;
+  coordinates?: { lat: number; lng: number };
+  accuracy?: number;   // Accuracy in meters
 }
 
 export interface ScheduledOutage {
@@ -45,6 +47,9 @@ export interface Resource {
   hours: string;       // e.g. "Open until 18:00"
   status: "open" | "closed";
   updated: string;     // e.g. "12 min ago"
+  address?: string;    // Searchable real street location for Google Maps navigation
+  phone?: string;      // Direct helpline or facility phone
+  coordinates?: { lat: number; lng: number };
 }
 
 export interface Alert {
@@ -78,98 +83,80 @@ export interface LocationIncidentGroup {
   incidents: Incident[];
 }
 
-export const SEED_INCIDENTS: Incident[] = [
-  { id: "INC-001", type: "power", location: "Section C, Ward 8", affected: 240, confirmations: 4,
-    status: "assigned", priority: "high", facilities: ["Clinic fridge", "Traffic lights"],
-    time: "17:30", eta: "19:45", isMine: true },
-  { id: "INC-002", type: "water", location: "Section D, Ward 8", affected: 36, confirmations: 3,
-    status: "verified", priority: "high", facilities: ["Clinic"], time: "16:00" },
-  { id: "INC-003", type: "food", location: "Ward 8", affected: 18, confirmations: 5,
-    status: "reported", priority: "medium", time: "14:20" },
-  { id: "INC-004", type: "road", location: "Main Road", affected: 42, confirmations: 6,
-    status: "verified", priority: "high", time: "13:10",
-    facilities: ["Clinic access", "School route"], isMine: true },
-  { id: "INC-005", type: "flood", location: "Section A, Ward 8", affected: 12, confirmations: 3,
-    status: "assigned", priority: "critical",
-    facilities: ["3 elderly households"], time: "12:00", eta: "13:30" },
-  { id: "INC-006", type: "fire", location: "Section B, Ward 8", affected: 15, confirmations: 4,
-    status: "verified", priority: "critical",
-    facilities: ["Community crèche"], time: "15:45",
-    description: "Informal settlement shack fire near Mzamo lane, strong winds." },
-];
+export const SEED_INCIDENTS: Incident[] = [];
 
-export const SEED_SCHEDULED_OUTAGES: ScheduledOutage[] = [
-  {
-    id: "SCH-001",
-    type: "power",
-    title: "Electricity — Load Shedding",
-    day: "Today",
-    timeSlot: "18:00 – 20:30",
-    location: "Section C, Ward 8",
-    note: "Reminder active for today: Charge devices before 18:00.",
-    reminderSet: true,
-  },
-  {
-    id: "SCH-002",
-    type: "water",
-    title: "Water — Pipe Maintenance",
-    day: "Tomorrow",
-    timeSlot: "08:00 – 14:00",
-    location: "Section C & D, Ward 8",
-    note: "Store 20L of drinking water tonight.",
-    reminderSet: true,
-  },
-  {
-    id: "SCH-003",
-    type: "power",
-    title: "Electricity — Load Shedding",
-    day: "Tomorrow",
-    timeSlot: "20:00 – 22:30",
-    location: "Section C, Ward 8",
-    note: "Evening slot scheduled by Eskom.",
-    reminderSet: false,
-  },
-  {
-    id: "SCH-004",
-    type: "water",
-    title: "Water — Reservoir Cleaning",
-    day: "Sun, 25 Oct",
-    timeSlot: "09:00 – 15:00",
-    location: "Ward 8 (All Sections)",
-    note: "Water tanker will be parked at Community Hall.",
-    reminderSet: false,
-  },
-  {
-    id: "SCH-005",
-    type: "power",
-    title: "Electricity — Substation Upgrade",
-    day: "Mon, 26 Oct",
-    timeSlot: "10:00 – 13:00",
-    location: "Section C, Ward 8",
-    note: "Planned municipal line maintenance.",
-    reminderSet: false,
-  },
-];
+export const SEED_SCHEDULED_OUTAGES: ScheduledOutage[] = [];
 
 export const SEED_RESOURCES: Resource[] = [
-  { id: "RES-001", type: "water", name: "Water tanker — Community Hall", distance: "0.8km",
-    hours: "Open until 18:00", status: "open", updated: "12 min ago" },
-  { id: "RES-002", type: "charging", name: "Charging station — Library", distance: "1.2km",
-    hours: "Open until 20:00", status: "open", updated: "5 min ago" },
-  { id: "RES-003", type: "food", name: "Food parcels — Sizanani Centre", distance: "2.1km",
-    hours: "Tomorrow 09:00", status: "open", updated: "1 hour ago" },
-  { id: "RES-004", type: "clinic", name: "Clinic — Mzamo", distance: "3.4km",
-    hours: "Open until 17:00", status: "open", updated: "30 min ago" },
-  { id: "RES-005", type: "shelter", name: "Shelter — Mzamo Primary School", distance: "3.6km",
-    hours: "Open 24 hours", status: "open", updated: "20 min ago" },
+  {
+    id: "RES-EMS",
+    type: "clinic",
+    name: "National Emergency Medical Services (EMS Ambulance)",
+    distance: "Emergency Dispatch",
+    hours: "Open 24/7",
+    status: "open",
+    updated: "Live service",
+    address: "Emergency Medical Services South Africa",
+    phone: "10177",
+  },
+  {
+    id: "RES-POLICE",
+    type: "shelter",
+    name: "SAPS Emergency & Community Safety Center",
+    distance: "Police Services",
+    hours: "Open 24/7",
+    status: "open",
+    updated: "Live service",
+    address: "South African Police Service Emergency",
+    phone: "10111",
+  },
+  {
+    id: "RES-DISASTER",
+    type: "shelter",
+    name: "National Disaster Management Helpline",
+    distance: "Disaster Operations",
+    hours: "Open 24/7",
+    status: "open",
+    updated: "Live service",
+    address: "National Disaster Management Centre, South Africa",
+    phone: "112",
+  },
+  {
+    id: "RES-RED-CROSS",
+    type: "food",
+    name: "Red Cross Disaster Relief South Africa",
+    distance: "Emergency Aid Hub",
+    hours: "Response Ready",
+    status: "open",
+    updated: "Live service",
+    address: "South African Red Cross Society",
+    phone: "0800000000",
+  },
+  {
+    id: "RES-ESKOM",
+    type: "charging",
+    name: "Eskom Customer Care & Power Grid Dispatch",
+    distance: "National Power Grid",
+    hours: "Open 24/7",
+    status: "open",
+    updated: "Live service",
+    address: "Eskom Megawatt Park, Sunninghill, Sandton",
+    phone: "0860037566",
+  },
+  {
+    id: "RES-WATER-BOARD",
+    type: "water",
+    name: "Municipal Water & Sanitation Emergency Dispatch",
+    distance: "Municipal Water Operations",
+    hours: "Open 24/7",
+    status: "open",
+    updated: "Live service",
+    address: "Municipal Water and Sanitation Department",
+    phone: "0800222700",
+  },
 ];
 
-export const ACTIVE_ALERT: Alert = {
-  id: "ALERT-001",
-  variant: "warning",
-  icon: "power",
-  text: "Load shedding 18:00–20:30 in your area. Charge devices.",
-};
+export const ACTIVE_ALERT: Alert | null = null;
 
 export const PRIORITY_ORDER: Record<Priority, number> = {
   critical: 0,
@@ -222,6 +209,112 @@ export function filterIncidentsByHazard(
   category: HazardCategory
 ): Incident[] {
   return incidents.filter((inc) => matchesHazardCategory(inc, category));
+}
+
+/**
+ * Calculates distance in kilometers between two GPS coordinates using the Haversine formula.
+ */
+export function calculateDistanceKm(
+  coord1: { lat: number; lng: number },
+  coord2: { lat: number; lng: number }
+): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((coord2.lat - coord1.lat) * Math.PI) / 180;
+  const dLng = ((coord2.lng - coord1.lng) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((coord1.lat * Math.PI) / 180) *
+      Math.cos((coord2.lat * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+/**
+ * Checks if an incident's location text is in or near the user's ward/area.
+ */
+export function isLocationNearby(
+  incidentLocation: string,
+  userLocation?: string
+): boolean {
+  if (!userLocation || !incidentLocation) return false;
+  const normUser = userLocation.toLowerCase();
+  const normInc = incidentLocation.toLowerCase();
+
+  // Direct containment
+  if (normUser.includes(normInc) || normInc.includes(normUser)) return true;
+
+  // Ward number match (e.g. "ward 8", "ward 117")
+  const userWardMatch = normUser.match(/ward\s*(\d+)/i);
+  const incWardMatch = normInc.match(/ward\s*(\d+)/i);
+  if (userWardMatch && incWardMatch && userWardMatch[1] === incWardMatch[1]) {
+    return true;
+  }
+
+  // Section / Suburb token overlap
+  const stopWords = new Set(["south", "africa", "city", "road", "street", "avenue", "near"]);
+  const userTokens = normUser
+    .split(/[\s,.-]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3 && !stopWords.has(t));
+  const incTokens = normInc
+    .split(/[\s,.-]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3 && !stopWords.has(t));
+
+  return userTokens.some((token) => incTokens.includes(token));
+}
+
+/**
+ * Filters incidents so residents only see disruptions near them or reported by them.
+ */
+export function filterNearbyIncidents(
+  incidents: Incident[],
+  user?: { ward?: string; coordinates?: { lat: number; lng: number }; uid?: string } | null,
+  options: {
+    scope?: "nearby" | "mine" | "all";
+    maxDistanceKm?: number;
+  } = {}
+): Incident[] {
+  const { scope = "nearby", maxDistanceKm = 15 } = options;
+
+  if (scope === "all") {
+    return incidents;
+  }
+
+  return incidents.filter((incident) => {
+    // 1. If user reported this incident, always show it
+    const isOwner =
+      incident.isMine ||
+      (user?.uid && (incident as unknown as { userId?: string }).userId === user.uid);
+
+    if (scope === "mine") {
+      return Boolean(isOwner);
+    }
+
+    if (isOwner) {
+      return true;
+    }
+
+    // 2. High-precision GPS distance check (within maxDistanceKm, default 15km)
+    if (user?.coordinates && incident.coordinates) {
+      const dist = calculateDistanceKm(user.coordinates, incident.coordinates);
+      return dist <= maxDistanceKm;
+    }
+
+    // 3. Ward / Suburb text match check
+    if (user?.ward && isLocationNearby(incident.location, user.ward)) {
+      return true;
+    }
+
+    // 4. If user hasn't set any location yet, show incidents so app isn't blank
+    if (!user?.ward && !user?.coordinates) {
+      return true;
+    }
+
+    return false;
+  });
 }
 
 export function sortIncidents(incidents: Incident[]): Incident[] {

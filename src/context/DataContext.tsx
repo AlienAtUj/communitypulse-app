@@ -13,10 +13,6 @@ import {
   IncidentType,
   IncidentStatus,
   ScheduledOutage,
-  SEED_INCIDENTS,
-  SEED_RESOURCES,
-  SEED_SCHEDULED_OUTAGES,
-  ACTIVE_ALERT,
 } from "../lib/data";
 import {
   subscribeToIncidents,
@@ -40,8 +36,8 @@ import {
   subscribeToAuth,
   signUpUser,
   signInUser,
-  signInGuestUser,
   signOutCurrentUser,
+  updateUserLocationInDb,
 } from "../lib/authService";
 import { isFirebaseConfigured } from "../lib/firebase";
 
@@ -62,9 +58,18 @@ interface DataContextValue {
 
   // User & Auth
   currentUser: UserProfile | null;
-  signUp: (email: string, pass: string, name: string, ward?: string) => Promise<void>;
+  signUp: (
+    email: string,
+    pass: string,
+    name: string,
+    ward?: string,
+    coordinates?: { lat: number; lng: number }
+  ) => Promise<void>;
+  updateUserLocation: (
+    ward: string,
+    coordinates?: { lat: number; lng: number }
+  ) => Promise<void>;
   signIn: (email: string, pass: string) => Promise<void>;
-  signInGuest: () => Promise<void>;
   signOut: () => Promise<void>;
 
   // Actions
@@ -78,6 +83,8 @@ interface DataContextValue {
     location: string;
     landmark?: string;
     description?: string;
+    coordinates?: { lat: number; lng: number };
+    accuracy?: number;
   }) => string;
   updateIncidentStatus: (id: string, status: IncidentStatus, eta?: string) => void;
   confirmIncident: (id: string) => void;
@@ -183,12 +190,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // Auth actions
   const signUp = useCallback(
-    async (email: string, pass: string, name: string, ward?: string) => {
-      const user = await signUpUser(email, pass, name, ward);
+    async (
+      email: string,
+      pass: string,
+      name: string,
+      ward?: string,
+      coordinates?: { lat: number; lng: number }
+    ) => {
+      const user = await signUpUser(email, pass, name, ward, coordinates);
       setCurrentUser(user);
-      showToast(`Welcome to CommunityPulse, ${user.displayName || "Neighbor"}!`, "success");
+      showToast(`Welcome to CommunityPulse, ${user.displayName || "Resident"}!`, "success");
     },
     [showToast]
+  );
+
+  const updateUserLocation = useCallback(
+    async (ward: string, coordinates?: { lat: number; lng: number }) => {
+      if (!currentUser) return;
+      await updateUserLocationInDb(currentUser.uid, ward, coordinates);
+      setCurrentUser((prev) => (prev ? { ...prev, ward, coordinates } : null));
+      showToast(`Location updated to ${ward}`, "success");
+    },
+    [currentUser, showToast]
   );
 
   const signIn = useCallback(
@@ -199,12 +222,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     },
     [showToast]
   );
-
-  const signInGuest = useCallback(async () => {
-    const user = await signInGuestUser();
-    setCurrentUser(user);
-    showToast("Signed in as Guest Resident", "info");
-  }, [showToast]);
 
   const signOut = useCallback(async () => {
     await signOutCurrentUser();
@@ -283,13 +300,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       location: string;
       landmark?: string;
       description?: string;
+      coordinates?: { lat: number; lng: number };
+      accuracy?: number;
     }) => {
+      if (!currentUser || currentUser.isAnonymous) {
+        showToast(
+          "Verified account required. Please sign in before reporting to prevent false updates.",
+          "error"
+        );
+        throw new Error("Verified account required to submit report.");
+      }
       const newId = `INC-${Date.now().toString().slice(-5)}`;
-      createIncidentInDb(report, currentUser?.uid);
+      createIncidentInDb(report, currentUser.uid);
       showToast("Incident reported. Connecting with responders...", "success");
       return newId;
     },
-    [currentUser?.uid, showToast]
+    [currentUser, showToast]
   );
 
   const updateIncidentStatus = useCallback(
@@ -403,8 +429,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         currentUser,
         isLiveDatabase,
         signUp,
+        updateUserLocation,
         signIn,
-        signInGuest,
         signOut,
       }}
     >

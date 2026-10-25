@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import { BottomSheet } from "./BottomSheet";
 import { Button } from "./Button";
 import { IconCheck, IconClose } from "./icons";
-import { isFirebaseConfigured, db, auth } from "../lib/firebase";
-import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
-import { signInAnonymously } from "firebase/auth";
+import { isFirebaseConfigured, db } from "../lib/firebase";
+import { collection, getDocs, limit, query } from "firebase/firestore";
+import { purgeMockDataFromDb } from "../lib/firestoreService";
 import { useData } from "../context/DataContext";
 
 export interface FirebaseStatusModalProps {
@@ -32,52 +32,25 @@ export function FirebaseStatusModal({ isOpen, onClose }: FirebaseStatusModalProp
     const startTime = performance.now();
 
     try {
-      if (!isFirebaseConfigured || !db || !auth) {
+      if (!isFirebaseConfigured || !db) {
         throw new Error(
           "Firebase credentials not found in .env. Create a .env file with your project keys."
         );
       }
 
-      // Step 1: Ensure user is authenticated (anonymous or active)
-      if (!auth.currentUser) {
-        await signInAnonymously(auth);
-      }
-
-      // Step 2: Write a real diagnostic ping document to Firestore
-      const testCol = collection(db, "incidents");
-      const docRef = await addDoc(testCol, {
-        type: "power",
-        location: "Connection Test - Live Ping",
-        affected: 1,
-        confirmations: 1,
-        status: "reported",
-        priority: "high",
-        time: "Just now",
-        description: "Automated test ping verifying live Cloud Firestore connection.",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        isTest: true,
-      });
+      // Query live Firestore to verify active connection without fake records
+      const q = query(collection(db, "incidents"), limit(1));
+      const snap = await getDocs(q);
 
       const elapsed = Math.round(performance.now() - startTime);
 
       setTestResult({
         success: true,
-        message: `Successfully connected and wrote to Cloud Firestore!`,
+        message: `Successfully connected to Cloud Firestore! Verified ${snap.size} records reachable.`,
         latencyMs: elapsed,
-        docId: docRef.id,
       });
 
       showToast(`Live database verified! Latency: ${elapsed}ms`, "success");
-
-      // Clean up test document after 5s so database remains clean
-      setTimeout(async () => {
-        try {
-          await deleteDoc(doc(db, "incidents", docRef.id));
-        } catch {
-          // ignore
-        }
-      }, 5000);
     } catch (err: unknown) {
       const errObj = err as Error;
       setTestResult({
@@ -87,6 +60,28 @@ export function FirebaseStatusModal({ isOpen, onClose }: FirebaseStatusModalProp
       showToast("Live database test failed. Check .env", "error");
     } finally {
       setTesting(false);
+    }
+  };
+
+  const [purging, setPurging] = useState(false);
+
+  const handlePurgeMockData = async () => {
+    setPurging(true);
+    try {
+      const { purgedCount } = await purgeMockDataFromDb();
+      showToast(
+        purgedCount > 0
+          ? `Purged ${purgedCount} mock records from database!`
+          : "Cache cleared. App is running on 100% real community data.",
+        "success"
+      );
+      setTimeout(() => {
+        window.location.reload();
+      }, 700);
+    } catch (e) {
+      showToast("Error clearing mock records", "error");
+    } finally {
+      setPurging(false);
     }
   };
 
@@ -167,7 +162,7 @@ export function FirebaseStatusModal({ isOpen, onClose }: FirebaseStatusModalProp
             <div>{testResult.message}</div>
             {testResult.latencyMs && (
               <div className="text-[12px] mt-1 opacity-80">
-                Ping: {testResult.latencyMs}ms | Doc ID: {testResult.docId}
+                Response Time: {testResult.latencyMs}ms
               </div>
             )}
           </div>
@@ -183,6 +178,16 @@ export function FirebaseStatusModal({ isOpen, onClose }: FirebaseStatusModalProp
             onClick={runLiveTest}
           >
             {testing ? "Testing live connection..." : "Run Live Database Test"}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="md"
+            fullWidth
+            disabled={purging}
+            onClick={handlePurgeMockData}
+          >
+            {purging ? "Purging demo data..." : "Purge Mock / Demo Records"}
           </Button>
 
           <Button

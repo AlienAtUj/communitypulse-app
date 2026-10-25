@@ -381,6 +381,24 @@ export function IconChevronDown({ size = 24, className = "" }: IconProps) {
   );
 }
 
+export function IconChevronUp({ size = 24, className = "" }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.25}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M18 14.5l-6-5.5-6 5.5" />
+    </svg>
+  );
+}
+
 export function IconPeople({ size = 24, className = "" }: IconProps) {
   return (
     <svg
@@ -437,6 +455,44 @@ export function IconFire({ size = 24, className = "" }: IconProps) {
       className={className}
     >
       <path d="M12 3c2.5 3.2 5.5 6.2 5.5 10.5a5.5 5.5 0 0 1-11 0c0-2.6 1.5-5 3.2-6.8.3 1.6 1.2 2.5 2.3 2.8 0-2.2 0-4.3 0-6.5Z" />
+    </svg>
+  );
+}
+
+export function IconShield({ size = 24, className = "" }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.25}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M12 3.5s7-2 7 5.5c0 6-7 11.5-7 11.5S5 15 5 9c0-7.5 7-5.5 7-5.5z" />
+    </svg>
+  );
+}
+
+export function IconInfo({ size = 24, className = "" }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.25}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8.5v.5" />
+      <path d="M12 12v4.5" />
     </svg>
   );
 }

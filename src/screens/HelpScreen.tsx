@@ -140,20 +140,29 @@ export function HelpScreen() {
               <StatusBadge status={selectedResource.status} />
             </div>
 
-            <div className="flex flex-col gap-2 mb-6">
-              <div className="flex items-center gap-2 text-[15px] text-[#111827]">
-                <IconLocation size={18} className="text-[#003DA5] shrink-0" />
-                <span>{selectedResource.distance} from Section C, Ward 8</span>
+            <div className="flex flex-col gap-3 mb-6">
+              <div className="flex items-start gap-2 text-[14px] text-[#111827]">
+                <IconLocation size={18} className="text-[#003DA5] shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="font-semibold text-[#111827] break-words">
+                    {selectedResource.address || selectedResource.name}
+                  </p>
+                  <p className="text-[12px] text-[#6B7280]">
+                    {selectedResource.distance}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-[15px] text-[#111827]">
+              <div className="flex items-center gap-2 text-[14px] text-[#111827]">
                 <IconClock size={18} className="text-[#003DA5] shrink-0" />
                 <span>
-                  {selectedResource.hours} · updated {selectedResource.updated}
+                  {selectedResource.hours} · {selectedResource.updated}
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-[15px] text-[#111827]">
+              <div className="flex items-center gap-2 text-[14px] text-[#111827]">
                 <IconPhone size={18} className="text-[#003DA5] shrink-0" />
-                <span>Ward 8 Helpdesk: 0800 222 700</span>
+                <span className="font-medium">
+                  Direct Line: {selectedResource.phone || "112 (Emergency)"}
+                </span>
               </div>
             </div>
 
@@ -162,24 +171,29 @@ export function HelpScreen() {
                 variant="primary"
                 fullWidth
                 onClick={() => {
-                  const name = selectedResource.name;
-                  setSelectedResource(null);
-                  showToast(
-                    `Opening walking directions to ${name}.`,
-                    "info"
-                  );
+                  const destination = selectedResource.coordinates
+                    ? `${selectedResource.coordinates.lat},${selectedResource.coordinates.lng}`
+                    : encodeURIComponent(
+                        selectedResource.address || selectedResource.name
+                      );
+                  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+                  window.open(mapsUrl, "_blank", "noopener,noreferrer");
                 }}
               >
-                Get walking directions
+                Directions in Google Maps
               </Button>
               <Button
                 variant="secondary"
                 fullWidth
                 onClick={() => {
-                  window.location.href = "tel:0800222700";
+                  const phoneNum = (selectedResource.phone || "112").replace(
+                    /[^0-9+]/g,
+                    ""
+                  );
+                  window.location.href = `tel:${phoneNum}`;
                 }}
               >
-                Call helpdesk
+                Call {selectedResource.phone || "Emergency Line"}
               </Button>
             </div>
           </div>
