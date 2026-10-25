@@ -25,11 +25,15 @@ import {
   confirmIncidentInDb,
   subscribeToAlerts,
   dismissAlertInDb,
+  broadcastAlertInDb,
   subscribeToOutages,
+  createOutageInDb,
   toggleOutageReminderInDb,
   subscribeToResources,
+  createResourceInDb,
   subscribeToNgoOffers,
   submitNgoOfferInDb,
+  addIncidentUpdateInDb,
 } from "../lib/firestoreService";
 import {
   UserProfile,
@@ -78,6 +82,10 @@ interface DataContextValue {
   updateIncidentStatus: (id: string, status: IncidentStatus, eta?: string) => void;
   confirmIncident: (id: string) => void;
   submitNgoOffer: (type: IncidentType, details: { provide: string; quantity: string; eta: string }) => void;
+  createScheduledOutage: (outage: Omit<ScheduledOutage, "id">) => Promise<string>;
+  createResource: (res: Omit<Resource, "id">) => Promise<string>;
+  broadcastAlert: (alert: Omit<Alert, "id">) => Promise<string>;
+  addIncidentUpdate: (incidentId: string, message: string, responder?: string) => Promise<void>;
 
   // Navigation & UI state
   selectedIncidentId: string | null;
@@ -309,7 +317,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const confirmIncident = useCallback((id: string) => {
     confirmIncidentInDb(id);
-  }, []);
+    showToast("Confirmed! Your report strengthens community priority.", "success");
+  }, [showToast]);
 
   const submitNgoOffer = useCallback(
     (type: IncidentType, details: { provide: string; quantity: string; eta: string }) => {
@@ -318,8 +327,44 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         [type]: details,
       }));
+      showToast("Offer registered in live database.", "success");
     },
-    []
+    [showToast]
+  );
+
+  const createScheduledOutage = useCallback(
+    async (outage: Omit<ScheduledOutage, "id">) => {
+      const id = await createOutageInDb(outage);
+      showToast("Outage schedule published to live database.", "success");
+      return id;
+    },
+    [showToast]
+  );
+
+  const createResource = useCallback(
+    async (res: Omit<Resource, "id">) => {
+      const id = await createResourceInDb(res);
+      showToast("Relief resource added to live database.", "success");
+      return id;
+    },
+    [showToast]
+  );
+
+  const broadcastAlert = useCallback(
+    async (alert: Omit<Alert, "id">) => {
+      const id = await broadcastAlertInDb(alert);
+      showToast("Emergency alert broadcasted live to all residents.", "success");
+      return id;
+    },
+    [showToast]
+  );
+
+  const addIncidentUpdate = useCallback(
+    async (incidentId: string, message: string, responder?: string) => {
+      await addIncidentUpdateInDb(incidentId, message, responder);
+      showToast("Official update saved and broadcasted.", "success");
+    },
+    [showToast]
   );
 
   const markScreenVisited = useCallback((screen: string) => {
@@ -343,6 +388,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         confirmIncident,
         ngoOffers,
         submitNgoOffer,
+        createScheduledOutage,
+        createResource,
+        broadcastAlert,
+        addIncidentUpdate,
         selectedIncidentId,
         setSelectedIncidentId,
         isReportOpen,

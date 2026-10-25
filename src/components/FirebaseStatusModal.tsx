@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { BottomSheet } from "./BottomSheet";
 import { Button } from "./Button";
+import { IconCheck, IconClose } from "./icons";
 import { isFirebaseConfigured, db, auth } from "../lib/firebase";
 import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
@@ -150,8 +151,18 @@ export function FirebaseStatusModal({ isOpen, onClose }: FirebaseStatusModalProp
                 : "bg-[#E4002B]/10 border-[#E4002B]/30 text-[#E4002B]"
             }`}
           >
-            <div className="font-bold mb-1">
-              {testResult.success ? "✓ Test Passed" : "✕ Test Failed"}
+            <div className="font-bold mb-1 flex items-center gap-1.5">
+              {testResult.success ? (
+                <>
+                  <IconCheck size={16} />
+                  <span>Connection Verified</span>
+                </>
+              ) : (
+                <>
+                  <IconClose size={16} />
+                  <span>Connection Failed</span>
+                </>
+              )}
             </div>
             <div>{testResult.message}</div>
             {testResult.latencyMs && (

@@ -23,6 +23,7 @@ export default defineConfig(() => {
         output: {
           manualChunks: {
             firebase: ['firebase/app', 'firebase/firestore', 'firebase/auth'],
+            leaflet: ['leaflet'],
             react: ['react', 'react-dom'],
           },
         },

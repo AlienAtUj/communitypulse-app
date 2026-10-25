@@ -22,6 +22,8 @@ export function DashboardScreen() {
   const {
     incidents,
     updateIncidentStatus,
+    addIncidentUpdate,
+    broadcastAlert,
     showToast,
     navigate,
     visitedScreens,
@@ -87,7 +89,7 @@ export function DashboardScreen() {
     setMessageError("");
   };
 
-  const handleSendUpdateSubmit = (e: React.FormEvent) => {
+  const handleSendUpdateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!updateMessage.trim()) {
       setMessageError("Please enter an update message for residents.");
@@ -95,26 +97,17 @@ export function DashboardScreen() {
     }
     if (!updateTarget) return;
 
-    const updateRecord = {
-      id: `UPD-${Date.now()}`,
-      incidentId: updateTarget.id,
-      location: updateTarget.location,
-      affectedHouseholds: updateTarget.affected,
-      message: updateMessage.trim(),
-      createdAt: new Date().toISOString(),
-      deliveryStatus: "saved-test-mode",
-    };
-
     try {
-      const storageKey = "communitypulse_responder_updates";
-      const saved = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
-      window.localStorage.setItem(storageKey, JSON.stringify([updateRecord, ...saved]));
+      await addIncidentUpdate(
+        updateTarget.id,
+        updateMessage.trim(),
+        "Municipal Technical Unit"
+      );
       setUpdateTarget(null);
       setUpdateMessage("");
       setMessageError("");
-      showToast("Update saved in test mode. No SMS or WhatsApp message was sent.", "success");
     } catch {
-      setMessageError("The update could not be saved in this browser. Please try again.");
+      setMessageError("The update could not be published. Please try again.");
     }
   };
 

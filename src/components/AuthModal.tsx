@@ -106,8 +106,9 @@ export function AuthModal({
               <p className="text-[14px] text-[#6B7280]">
                 {currentUser.email || "Guest Resident"}
               </p>
-              <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-[12px] font-medium bg-[#00A651]/10 text-[#00A651]">
-                ● Live Account Active ({currentUser.ward || "Ward 8"})
+              <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium bg-[#00A651]/10 text-[#00A651]">
+                <span className="w-2 h-2 rounded-full bg-[#00A651]" />
+                <span>Live Account Active ({currentUser.ward || "Ward 8"})</span>
               </div>
             </div>
 

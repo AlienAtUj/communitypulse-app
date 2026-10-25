@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { Incident, INCIDENT_TYPE_LABELS } from "../lib/data";
+import { useData } from "../context/DataContext";
 import { BottomSheet } from "../components/BottomSheet";
 import { CategoryVisual } from "../components/CategoryVisual";
 import { StatusBadge } from "../components/StatusBadge";
@@ -7,7 +8,7 @@ import { SectionLabel } from "../components/SectionLabel";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { INCIDENT_ICONS, INCIDENT_COLORS } from "../components/IncidentCard";
-import { IconCheck, IconTruck } from "../components/icons";
+import { IconCheck, IconTruck, IconBell } from "../components/icons";
 
 export interface IncidentDetailSheetProps {
   incident: Incident | null;
@@ -65,12 +66,21 @@ export function IncidentDetailSheet({
   onFindHelp,
   onConfirmResolved,
 }: IncidentDetailSheetProps) {
+  const { confirmIncident } = useData();
+  const [hasConfirmed, setHasConfirmed] = useState(false);
+
   if (!incident) return null;
 
   const IconComp = INCIDENT_ICONS[incident.type];
   const color = INCIDENT_COLORS[incident.type];
   const typeLabel = INCIDENT_TYPE_LABELS[incident.type];
   const currentIndex = STATUS_INDEX[incident.status];
+
+  const handleConfirmIncident = () => {
+    if (hasConfirmed) return;
+    confirmIncident(incident.id);
+    setHasConfirmed(true);
+  };
 
   return (
     <BottomSheet
@@ -104,6 +114,19 @@ export function IncidentDetailSheet({
         <p className="text-[15px] font-normal leading-[1.5] text-[#111827] mb-5 break-words">
           {incident.description}
         </p>
+      )}
+
+      {/* Official Responder Live Update from Firestore */}
+      {incident.latestUpdate && (
+        <div className="p-3.5 mb-5 rounded-2xl bg-[#00A651]/10 border border-[#00A651]/25">
+          <div className="flex items-center gap-1.5 mb-1 text-[12px] font-bold text-[#00A651]">
+            <IconBell size={14} className="text-[#00A651] shrink-0" />
+            <span>Official Update ({incident.latestUpdateBy || "Municipal Technical Unit"}):</span>
+          </div>
+          <p className="text-[14px] font-medium text-[#111827]">
+            {incident.latestUpdate}
+          </p>
+        </div>
       )}
 
       {/* Critical Facilities */}
@@ -206,16 +229,34 @@ export function IncidentDetailSheet({
 
       {/* Bottom Action Row */}
       <div className="flex flex-col gap-3">
+        {incident.status !== "resolved" && (
+          <Button
+            variant={hasConfirmed ? "secondary" : "primary"}
+            fullWidth
+            disabled={hasConfirmed}
+            onClick={handleConfirmIncident}
+          >
+            {hasConfirmed ? (
+              <span className="inline-flex items-center gap-1.5">
+                <IconCheck size={16} /> Problem confirmed by you
+              </span>
+            ) : (
+              `I also have this problem (${incident.confirmations} confirmed)`
+            )}
+          </Button>
+        )}
+
         <Button variant="secondary" fullWidth onClick={onFindHelp}>
           Find nearby help
         </Button>
+
         {incident.status !== "resolved" && (
           <Button
-            variant="primary"
+            variant="ghost"
             fullWidth
             onClick={() => onConfirmResolved(incident.id)}
           >
-            Confirm resolved
+            Mark as resolved
           </Button>
         )}
       </div>

@@ -4,11 +4,11 @@ import { ScreenHeader } from "../components/ScreenHeader";
 import { Card } from "../components/Card";
 import { CategoryVisual } from "../components/CategoryVisual";
 import { Button } from "../components/Button";
+import { EmptyState } from "../components/EmptyState";
 import { AlertBanner } from "../components/AlertBanner";
 import { BottomNav } from "../components/BottomNav";
 import {
   IconPower,
-  IconWater,
   IconBell,
   IconCheck,
   IconClock,
@@ -33,7 +33,7 @@ export function SchedulesScreen() {
       const timer = window.setTimeout(() => {
         setLoading(false);
         markScreenVisited("schedules");
-      }, 800);
+      }, 600);
       return () => window.clearTimeout(timer);
     }
   }, [visitedScreens, markScreenVisited]);
@@ -46,7 +46,7 @@ export function SchedulesScreen() {
     <div className="mx-auto w-full max-w-[420px] min-h-screen bg-[#FFFFFF] flex flex-col pb-24">
       <ScreenHeader
         title="Outage Schedules"
-        subtitle="Planned water and electricity outages for the next few days"
+        subtitle="Planned water and electricity outages for Ward 8"
       />
 
       <main className="flex-1 px-5 pt-5 flex flex-col gap-4">
@@ -64,21 +64,14 @@ export function SchedulesScreen() {
           <div className="flex flex-col gap-3" aria-label="Loading schedules">
             {[1, 2, 3].map((n) => (
               <Card key={n} className="animate-pulse">
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="w-[40px] h-[40px] rounded-full bg-[#E5E7EB]" />
-                  <div className="flex-1">
-                    <div className="h-[16px] w-[180px] rounded bg-[#E5E7EB] mb-2" />
-                    <div className="h-[12px] w-[140px] rounded bg-[#E5E7EB]" />
-                  </div>
-                </div>
-                <div className="h-[48px] w-full rounded-[12px] bg-[#E5E7EB]" />
+                <div className="h-[20px] w-[140px] rounded bg-[#E5E7EB] mb-2" />
+                <div className="h-[14px] w-[200px] rounded bg-[#E5E7EB]" />
               </Card>
             ))}
           </div>
-        ) : (
+        ) : scheduledOutages.length > 0 ? (
           <div className="flex flex-col gap-3">
             {scheduledOutages.map((outage) => {
-              const isPower = outage.type === "power";
               const isToday = outage.day === "Today";
 
               return (
@@ -139,6 +132,14 @@ export function SchedulesScreen() {
               );
             })}
           </div>
+        ) : (
+          <Card>
+            <EmptyState
+              icon={IconPower}
+              heading="No Outages Scheduled"
+              body="Eskom grid and municipal water supply are currently running normally in your area."
+            />
+          </Card>
         )}
       </main>
 

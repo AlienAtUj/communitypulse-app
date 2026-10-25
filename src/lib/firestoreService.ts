@@ -3,6 +3,7 @@ import {
   doc,
   setDoc,
   updateDoc,
+  getDocs,
   onSnapshot,
   query,
   orderBy,
@@ -10,7 +11,6 @@ import {
   increment,
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "./firebase";
-
 import {
   Incident,
   ScheduledOutage,
@@ -19,6 +19,9 @@ import {
   IncidentType,
   IncidentStatus,
   SEED_INCIDENTS,
+  SEED_SCHEDULED_OUTAGES,
+  SEED_RESOURCES,
+  ACTIVE_ALERT,
 } from "./data";
 
 const LOCAL_STORAGE_KEY_INCIDENTS = "cp_real_incidents";
@@ -47,30 +50,82 @@ function setLocalStorage<T>(key: string, value: T): void {
   }
 }
 
+let seedingPromise: Promise<void> | null = null;
+
 /**
- * Real-time subscription to Incidents collection (100% Real Data)
+ * Automatically seeds the live Firestore database collections with initial real data if empty.
+ */
+export async function seedLiveDatabaseIfEmpty(): Promise<void> {
+  if (!db) return;
+  if (seedingPromise) return seedingPromise;
+
+  seedingPromise = (async () => {
+    try {
+      const snap = await getDocs(collection(db, "incidents"));
+      if (snap.empty) {
+        console.log("Seeding fresh Firestore database with initial community data...");
+
+        // Seed Incidents
+        for (const inc of SEED_INCIDENTS) {
+          await setDoc(doc(db, "incidents", inc.id), {
+            ...inc,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+
+        // Seed Scheduled Outages
+        for (const outage of SEED_SCHEDULED_OUTAGES) {
+          await setDoc(doc(db, "outages", outage.id), {
+            ...outage,
+            createdAt: serverTimestamp(),
+          });
+        }
+
+        // Seed Resources
+        for (const res of SEED_RESOURCES) {
+          await setDoc(doc(db, "resources", res.id), {
+            ...res,
+            createdAt: serverTimestamp(),
+          });
+        }
+
+        // Seed Active Alert
+        if (ACTIVE_ALERT) {
+          await setDoc(doc(db, "alerts", ACTIVE_ALERT.id), {
+            ...ACTIVE_ALERT,
+            active: true,
+            createdAt: serverTimestamp(),
+          });
+        }
+
+        console.log("Firestore database initialized successfully with live records!");
+      }
+    } catch (e) {
+      console.warn("Notice: Firestore seeding check:", e);
+    }
+  })();
+
+  return seedingPromise;
+}
+
+/**
+ * Real-time subscription to Incidents collection
  */
 export function subscribeToIncidents(
   callback: (incidents: Incident[]) => void
 ): () => void {
   if (!db) {
-  const stored = getLocalStorage<Incident[]>(
-    LOCAL_STORAGE_KEY_INCIDENTS,
-    SEED_INCIDENTS
-  );
-
-  const local = stored.length > 0 ? stored : SEED_INCIDENTS;
-
-  if (
-    window.localStorage.getItem(LOCAL_STORAGE_KEY_INCIDENTS) === null ||
-    stored.length === 0
-  ) {
-    setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, local);
+    const local = getLocalStorage<Incident[]>(
+      LOCAL_STORAGE_KEY_INCIDENTS,
+      SEED_INCIDENTS
+    );
+    callback(local);
+    return () => {};
   }
 
-  callback(local);
-  return () => {};
-}
+  // Trigger seed check if brand new database
+  seedLiveDatabaseIfEmpty();
 
   const q = query(collection(db, "incidents"), orderBy("createdAt", "desc"));
   return onSnapshot(
@@ -92,6 +147,8 @@ export function subscribeToIncidents(
           eta: data.eta,
           resolvedAt: data.resolvedAt,
           description: data.description,
+          latestUpdate: data.latestUpdate,
+          latestUpdateBy: data.latestUpdateBy,
           isMine: Boolean(data.isMine),
         });
       });
@@ -102,9 +159,9 @@ export function subscribeToIncidents(
     (err) => {
       console.warn("Firestore incidents listener error (using cache):", err);
       const fallback = getLocalStorage<Incident[]>(
-          LOCAL_STORAGE_KEY_INCIDENTS,
-          SEED_INCIDENTS
-        );
+        LOCAL_STORAGE_KEY_INCIDENTS,
+        SEED_INCIDENTS
+      );
       callback(fallback);
     }
   );
@@ -163,7 +220,10 @@ export async function createIncidentInDb(
   if (db) {
     await setDoc(doc(db, "incidents", newId), incidentData);
   } else {
-    const list = getLocalStorage<Incident[]>(LOCAL_STORAGE_KEY_INCIDENTS, []);
+    const list = getLocalStorage<Incident[]>(
+      LOCAL_STORAGE_KEY_INCIDENTS,
+      SEED_INCIDENTS
+    );
     const updated = [incidentData as Incident, ...list];
     setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, updated);
   }
@@ -172,7 +232,7 @@ export async function createIncidentInDb(
 }
 
 /**
- * Update incident status or ETA in Firestore
+ * Update incident status, ETA, and resolution in Firestore
  */
 export async function updateIncidentInDb(
   id: string,
@@ -181,49 +241,38 @@ export async function updateIncidentInDb(
 ): Promise<void> {
   if (db) {
     const ref = doc(db, "incidents", id);
-
     const updates: Record<string, unknown> = {
       status,
       updatedAt: serverTimestamp(),
     };
-
     if (eta !== undefined) {
       updates.eta = eta;
     }
-
     if (status === "resolved") {
       updates.resolvedAt = new Date().toISOString();
-    } else {
-      updates.resolvedAt = null;
     }
-
     await updateDoc(ref, updates);
   } else {
     const list = getLocalStorage<Incident[]>(
       LOCAL_STORAGE_KEY_INCIDENTS,
-      []
+      SEED_INCIDENTS
     );
-
     const updated = list.map((item) =>
       item.id === id
         ? {
             ...item,
             status,
             eta: eta !== undefined ? eta : item.eta,
-            resolvedAt:
-              status === "resolved"
-                ? new Date().toISOString()
-                : undefined,
+            resolvedAt: status === "resolved" ? new Date().toISOString() : undefined,
           }
         : item
     );
-
     setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, updated);
   }
 }
 
 /**
- * Atomically increment incident confirmation count
+ * Atomically increment incident confirmation count in Firestore
  */
 export async function confirmIncidentInDb(id: string): Promise<void> {
   if (db) {
@@ -233,11 +282,32 @@ export async function confirmIncidentInDb(id: string): Promise<void> {
       updatedAt: serverTimestamp(),
     });
   } else {
-    const list = getLocalStorage<Incident[]>(LOCAL_STORAGE_KEY_INCIDENTS, []);
+    const list = getLocalStorage<Incident[]>(
+      LOCAL_STORAGE_KEY_INCIDENTS,
+      SEED_INCIDENTS
+    );
     const updated = list.map((item) =>
       item.id === id ? { ...item, confirmations: (item.confirmations || 0) + 1 } : item
     );
     setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, updated);
+  }
+}
+
+/**
+ * Add official responder update to incident in Firestore
+ */
+export async function addIncidentUpdateInDb(
+  incidentId: string,
+  message: string,
+  responder: string = "Municipal Dispatch"
+): Promise<void> {
+  if (db) {
+    const ref = doc(db, "incidents", incidentId);
+    await updateDoc(ref, {
+      latestUpdate: message,
+      latestUpdateBy: responder,
+      updatedAt: serverTimestamp(),
+    });
   }
 }
 
@@ -248,7 +318,7 @@ export function subscribeToAlerts(
   callback: (alert: Alert | null) => void
 ): () => void {
   if (!db) {
-    callback(getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, null));
+    callback(getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, ACTIVE_ALERT));
     return () => {};
   }
 
@@ -270,9 +340,29 @@ export function subscribeToAlerts(
       callback(found);
     },
     () => {
-      callback(getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, null));
+      callback(getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, ACTIVE_ALERT));
     }
   );
+}
+
+/**
+ * Broadcast a new emergency alert to all residents in Firestore
+ */
+export async function broadcastAlertInDb(alert: Omit<Alert, "id">): Promise<string> {
+  const newId = `ALERT-${Date.now().toString().slice(-5)}`;
+  const data = {
+    ...alert,
+    id: newId,
+    active: true,
+    createdAt: db ? serverTimestamp() : new Date().toISOString(),
+  };
+
+  if (db) {
+    await setDoc(doc(db, "alerts", newId), data);
+  } else {
+    setLocalStorage(LOCAL_STORAGE_KEY_ALERT, data as Alert);
+  }
+  return newId;
 }
 
 /**
@@ -299,7 +389,12 @@ export function subscribeToOutages(
   callback: (outages: ScheduledOutage[]) => void
 ): () => void {
   if (!db) {
-    callback(getLocalStorage<ScheduledOutage[]>(LOCAL_STORAGE_KEY_OUTAGES, []));
+    callback(
+      getLocalStorage<ScheduledOutage[]>(
+        LOCAL_STORAGE_KEY_OUTAGES,
+        SEED_SCHEDULED_OUTAGES
+      )
+    );
     return () => {};
   }
 
@@ -324,9 +419,39 @@ export function subscribeToOutages(
       callback(list);
     },
     () => {
-      callback(getLocalStorage<ScheduledOutage[]>(LOCAL_STORAGE_KEY_OUTAGES, []));
+      callback(
+        getLocalStorage<ScheduledOutage[]>(
+          LOCAL_STORAGE_KEY_OUTAGES,
+          SEED_SCHEDULED_OUTAGES
+        )
+      );
     }
   );
+}
+
+/**
+ * Create a new planned outage in Firestore
+ */
+export async function createOutageInDb(
+  outage: Omit<ScheduledOutage, "id">
+): Promise<string> {
+  const newId = `SCH-${Date.now().toString().slice(-5)}`;
+  const data = {
+    ...outage,
+    id: newId,
+    createdAt: db ? serverTimestamp() : new Date().toISOString(),
+  };
+
+  if (db) {
+    await setDoc(doc(db, "outages", newId), data);
+  } else {
+    const list = getLocalStorage<ScheduledOutage[]>(
+      LOCAL_STORAGE_KEY_OUTAGES,
+      SEED_SCHEDULED_OUTAGES
+    );
+    setLocalStorage(LOCAL_STORAGE_KEY_OUTAGES, [data as ScheduledOutage, ...list]);
+  }
+  return newId;
 }
 
 /**
@@ -343,7 +468,10 @@ export async function toggleOutageReminderInDb(
       console.warn("Outage reminder update error:", err);
     }
   } else {
-    const list = getLocalStorage<ScheduledOutage[]>(LOCAL_STORAGE_KEY_OUTAGES, []);
+    const list = getLocalStorage<ScheduledOutage[]>(
+      LOCAL_STORAGE_KEY_OUTAGES,
+      SEED_SCHEDULED_OUTAGES
+    );
     const updated = list.map((item) =>
       item.id === id ? { ...item, reminderSet } : item
     );
@@ -358,7 +486,9 @@ export function subscribeToResources(
   callback: (resources: Resource[]) => void
 ): () => void {
   if (!db) {
-    callback(getLocalStorage<Resource[]>(LOCAL_STORAGE_KEY_RESOURCES, []));
+    callback(
+      getLocalStorage<Resource[]>(LOCAL_STORAGE_KEY_RESOURCES, SEED_RESOURCES)
+    );
     return () => {};
   }
 
@@ -382,9 +512,36 @@ export function subscribeToResources(
       callback(list);
     },
     () => {
-      callback(getLocalStorage<Resource[]>(LOCAL_STORAGE_KEY_RESOURCES, []));
+      callback(
+        getLocalStorage<Resource[]>(LOCAL_STORAGE_KEY_RESOURCES, SEED_RESOURCES)
+      );
     }
   );
+}
+
+/**
+ * Add a new relief resource in Firestore
+ */
+export async function createResourceInDb(
+  resource: Omit<Resource, "id">
+): Promise<string> {
+  const newId = `RES-${Date.now().toString().slice(-5)}`;
+  const data = {
+    ...resource,
+    id: newId,
+    createdAt: db ? serverTimestamp() : new Date().toISOString(),
+  };
+
+  if (db) {
+    await setDoc(doc(db, "resources", newId), data);
+  } else {
+    const list = getLocalStorage<Resource[]>(
+      LOCAL_STORAGE_KEY_RESOURCES,
+      SEED_RESOURCES
+    );
+    setLocalStorage(LOCAL_STORAGE_KEY_RESOURCES, [data as Resource, ...list]);
+  }
+  return newId;
 }
 
 /**

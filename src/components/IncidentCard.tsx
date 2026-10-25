@@ -10,6 +10,7 @@ import {
   IconRoad,
   IconFlood,
   IconFire,
+  IconBell,
   IconArrowRight,
   IconProps,
 } from "./icons";
@@ -67,6 +68,12 @@ export function IncidentCard({ incident, onClick }: IncidentCardProps) {
               {incident.confirmations} neighbours reported · {incident.affected} households
               {incident.eta ? ` · ETA ${incident.eta}` : ""}
             </p>
+            {incident.latestUpdate && (
+              <p className="text-[11px] font-medium leading-[1.3] text-[#00A651] mt-1 truncate flex items-center gap-1">
+                <IconBell size={12} className="text-[#00A651] shrink-0" />
+                <span className="truncate">{incident.latestUpdate}</span>
+              </p>
+            )}
           </div>
         </div>
         <div className="text-[#003DA5] shrink-0 pl-1">

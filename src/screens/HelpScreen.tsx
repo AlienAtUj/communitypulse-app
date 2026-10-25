@@ -24,7 +24,13 @@ const FILTER_PILLS: { id: FilterCategory; label: string }[] = [
 ];
 
 export function HelpScreen() {
-  const { resources, showToast, visitedScreens, markScreenVisited } = useData();
+  const {
+    resources,
+    showToast,
+    visitedScreens,
+    markScreenVisited,
+  } = useData();
+
   const [selectedCategory, setSelectedCategory] = useState<FilterCategory>("all");
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [loading, setLoading] = useState<boolean>(() => !visitedScreens["help"]);
@@ -34,7 +40,7 @@ export function HelpScreen() {
       const timer = window.setTimeout(() => {
         setLoading(false);
         markScreenVisited("help");
-      }, 800);
+      }, 600);
       return () => window.clearTimeout(timer);
     }
   }, [visitedScreens, markScreenVisited]);
@@ -45,7 +51,7 @@ export function HelpScreen() {
     <div className="mx-auto w-full max-w-[420px] min-h-screen bg-[#FFFFFF] flex flex-col pb-24">
       <ScreenHeader
         title="Find Help Nearby"
-        subtitle="All resources verified by municipality or NGO partners"
+        subtitle="Verified relief resources in Ward 8"
       />
 
       <main className="flex-1 px-5 pt-5 flex flex-col gap-5">
@@ -106,8 +112,8 @@ export function HelpScreen() {
           <Card>
             <EmptyState
               icon={IconHelp}
-              heading="No resources in this category"
-              body="Try a different filter."
+              heading="No resources found"
+              body="No active relief points under this category yet."
               actionLabel="Show all resources"
               onAction={() => setSelectedCategory("all")}
             />
@@ -164,20 +170,16 @@ export function HelpScreen() {
                   );
                 }}
               >
-                Navigate
+                Get walking directions
               </Button>
               <Button
                 variant="secondary"
                 fullWidth
                 onClick={() => {
-                  setSelectedResource(null);
-                  showToast(
-                    "Dialing Ward 8 Community Helpdesk (0800 222 700).",
-                    "info"
-                  );
+                  window.location.href = "tel:0800222700";
                 }}
               >
-                Call facility
+                Call helpdesk
               </Button>
             </div>
           </div>

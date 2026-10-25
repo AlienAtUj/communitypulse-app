@@ -21,6 +21,8 @@ export interface Incident {
   eta?: string;        // e.g. "19:45"
   resolvedAt?: string;
   description?: string;
+  latestUpdate?: string;
+  latestUpdateBy?: string;
   isMine?: boolean;
 }
 
