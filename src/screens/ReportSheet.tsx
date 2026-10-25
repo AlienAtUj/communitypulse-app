@@ -153,14 +153,18 @@ export function ReportSheet() {
     setIsReportOpen(false);
   };
 
-  const handleSendReport = () => {
-    if (!currentUser || currentUser.isAnonymous) {
-      showToast("Verified account required to submit a report.", "error");
-      setIsAuthOpen(true);
-      return;
-    }
-    if (!selectedType) return;
-    submitReport({
+  
+const handleSendReport = async () => {
+  if (!currentUser || currentUser.isAnonymous) {
+    showToast("Verified account required to submit a report.", "error");
+    setIsAuthOpen(true);
+    return;
+  }
+
+  if (!selectedType) return;
+
+  try {
+    await submitReport({
       type: selectedType,
       location: location.trim() || currentUser.ward || "Local Ward",
       landmark: landmark.trim(),
@@ -168,8 +172,15 @@ export function ReportSheet() {
       coordinates: gpsCoords || undefined,
       accuracy: gpsAccuracy || undefined,
     });
+
+    // Only show the confirmation screen after saving succeeds.
     setStep(4);
-  };
+  } catch (error) {
+    // The error message is already handled by submitReport.
+    console.error("Report submission failed:", error);
+  }
+};
+
 
   const handleBackToHome = () => {
     setIsReportOpen(false);

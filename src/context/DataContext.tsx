@@ -85,7 +85,7 @@ interface DataContextValue {
     description?: string;
     coordinates?: { lat: number; lng: number };
     accuracy?: number;
-  }) => string;
+  }) => Promise<string>;
   updateIncidentStatus: (id: string, status: IncidentStatus, eta?: string) => void;
   confirmIncident: (id: string) => void;
   submitNgoOffer: (type: IncidentType, details: { provide: string; quantity: string; eta: string }) => void;
@@ -294,29 +294,53 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [pathname]
   );
 
-  const submitReport = useCallback(
-    (report: {
-      type: IncidentType;
-      location: string;
-      landmark?: string;
-      description?: string;
-      coordinates?: { lat: number; lng: number };
-      accuracy?: number;
-    }) => {
-      if (!currentUser || currentUser.isAnonymous) {
-        showToast(
-          "Verified account required. Please sign in before reporting to prevent false updates.",
-          "error"
-        );
-        throw new Error("Verified account required to submit report.");
-      }
-      const newId = `INC-${Date.now().toString().slice(-5)}`;
-      createIncidentInDb(report, currentUser.uid);
-      showToast("Incident reported. Connecting with responders...", "success");
+ 
+const submitReport = useCallback(
+  async (report: {
+    type: IncidentType;
+    location: string;
+    landmark?: string;
+    description?: string;
+    coordinates?: { lat: number; lng: number };
+    accuracy?: number;
+  }): Promise<string> => {
+    if (!currentUser || currentUser.isAnonymous) {
+      showToast(
+        "Verified account required. Please sign in before reporting.",
+        "error"
+      );
+
+      throw new Error("Verified account required to submit report.");
+    }
+
+    try {
+      // Wait for Firestore to save the report.
+      // Use the actual ID returned by the database function.
+      const newId = await createIncidentInDb(
+        report,
+        currentUser.uid
+      );
+
+      showToast(
+        "Incident reported successfully. Connecting with responders...",
+        "success"
+      );
+
       return newId;
-    },
-    [currentUser, showToast]
-  );
+    } catch (error) {
+      console.error("Failed to submit incident report:", error);
+
+      showToast(
+        "Your report could not be saved. Please try again.",
+        "error"
+      );
+
+      throw error;
+    }
+  },
+  [currentUser, showToast]
+);
+
 
   const updateIncidentStatus = useCallback(
   (id: string, status: IncidentStatus, eta?: string) => {

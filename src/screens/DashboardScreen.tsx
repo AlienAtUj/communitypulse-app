@@ -37,6 +37,14 @@ export function DashboardScreen() {
   const [updateTarget, setUpdateTarget] = useState<Incident | null>(null);
   const [updateMessage, setUpdateMessage] = useState<string>("");
   const [messageError, setMessageError] = useState<string>("");
+  const [assignTarget, setAssignTarget] = useState<Incident | null>(null);
+const [teamName, setTeamName] = useState("");
+const [teamLeader, setTeamLeader] = useState("");
+const [teamContact, setTeamContact] = useState("");
+const [arrivalTime, setArrivalTime] = useState("30 minutes");
+const [assignmentNotes, setAssignmentNotes] = useState("");
+const [assignmentError, setAssignmentError] = useState("");
+const [isAssigning, setIsAssigning] = useState(false);
 
   useEffect(() => {
     if (!visitedScreens["dashboard"]) {
@@ -70,14 +78,66 @@ export function DashboardScreen() {
   );
 
   const handleAssignTeam = (inc: Incident) => {
-    if (inc.status === "assigned") {
-      showToast("This incident is already assigned.", "info");
-      return;
-    }
-    updateIncidentStatus(inc.id, "assigned");
-    showToast(`Incident ${inc.id} marked as assigned. No external team notification was sent.`, "success");
-  };
+  setAssignTarget(inc);
+  setTeamName("");
+  setTeamLeader("");
+  setTeamContact("");
+  setArrivalTime("30 minutes");
+  setAssignmentNotes("");
+  setAssignmentError("");
+};
 
+const handleAssignTeamSubmit = async (
+  e: React.FormEvent<HTMLFormElement>
+) => {
+  e.preventDefault();
+
+  if (!assignTarget) return;
+
+  if (!teamName || !teamLeader.trim()) {
+    setAssignmentError("Select a team and enter the team leader's name.");
+    return;
+  }
+
+  setIsAssigning(true);
+  setAssignmentError("");
+
+  try {
+    const details = [
+      `Response team: ${teamName}`,
+      `Team leader: ${teamLeader.trim()}`,
+      `Contact: ${teamContact.trim() || "Not provided"}`,
+      `Estimated arrival: ${arrivalTime}`,
+      `Assignment notes: ${assignmentNotes.trim() || "None"}`,
+    ].join("\n");
+
+    await addIncidentUpdate(
+      assignTarget.id,
+      details,
+      "Municipal Dispatch"
+    );
+
+    updateIncidentStatus(
+      assignTarget.id,
+      "assigned",
+      arrivalTime
+    );
+
+    showToast(
+      `${teamName} assigned to incident ${assignTarget.id}.`,
+      "success"
+    );
+
+    setAssignTarget(null);
+  } catch (error) {
+    console.error("Team assignment failed:", error);
+    setAssignmentError(
+      "Could not save the assignment. Please try again."
+    );
+  } finally {
+    setIsAssigning(false);
+  }
+};
   const handleResolveIncident = (inc: Incident) => {
     updateIncidentStatus(inc.id, "resolved");
     showToast(`${inc.id} marked as resolved.`, "success");
@@ -392,6 +452,149 @@ export function DashboardScreen() {
           )}
         </section>
       </main>
+
+          
+<BottomSheet
+  isOpen={Boolean(assignTarget)}
+  onClose={() => {
+    if (!isAssigning) setAssignTarget(null);
+  }}
+  title="Assign response team"
+>
+  <form
+    onSubmit={handleAssignTeamSubmit}
+    className="flex flex-col gap-4"
+  >
+    <div>
+      <h2 className="text-xl font-bold text-[#111827]">
+        Assign response team
+      </h2>
+
+      <p className="mt-1 text-sm text-[#6B7280]">
+        Incident: {assignTarget?.id}
+      </p>
+
+      <p className="text-sm text-[#6B7280]">
+        {assignTarget?.location}
+      </p>
+    </div>
+
+    <div>
+      <label
+        htmlFor="teamName"
+        className="block text-sm font-semibold mb-2"
+      >
+        Response team
+      </label>
+
+      <select
+        id="teamName"
+        value={teamName}
+        onChange={(e) => setTeamName(e.target.value)}
+        required
+        className="w-full rounded-xl border border-[#D1D5DB] p-3 text-sm"
+      >
+        <option value="">Select a team</option>
+        <option value="Emergency Response">
+          Emergency Response
+        </option>
+        <option value="Electricity Services">
+          Electricity Services
+        </option>
+        <option value="Water and Sanitation">
+          Water and Sanitation
+        </option>
+        <option value="Road Maintenance">
+          Road Maintenance
+        </option>
+        <option value="Municipal Maintenance">
+          Municipal Maintenance
+        </option>
+      </select>
+    </div>
+
+    <Input
+      label="TEAM LEADER"
+      placeholder="Enter team leader's name"
+      value={teamLeader}
+      onChange={(e) => setTeamLeader(e.target.value)}
+    />
+
+    <Input
+      label="CONTACT NUMBER (OPTIONAL)"
+      placeholder="Enter contact number"
+      value={teamContact}
+      onChange={(e) => setTeamContact(e.target.value)}
+    />
+
+    <div>
+      <label
+        htmlFor="arrivalTime"
+        className="block text-sm font-semibold mb-2"
+      >
+        Estimated arrival
+      </label>
+
+      <select
+        id="arrivalTime"
+        value={arrivalTime}
+        onChange={(e) => setArrivalTime(e.target.value)}
+        className="w-full rounded-xl border border-[#D1D5DB] p-3 text-sm"
+      >
+        <option value="15 minutes">15 minutes</option>
+        <option value="30 minutes">30 minutes</option>
+        <option value="45 minutes">45 minutes</option>
+        <option value="1 hour">1 hour</option>
+        <option value="2 hours">2 hours</option>
+        <option value="To be confirmed">To be confirmed</option>
+      </select>
+    </div>
+
+    <div>
+      <label
+        htmlFor="assignmentNotes"
+        className="block text-sm font-semibold mb-2"
+      >
+        Assignment notes (optional)
+      </label>
+
+      <textarea
+        id="assignmentNotes"
+        value={assignmentNotes}
+        onChange={(e) => setAssignmentNotes(e.target.value)}
+        placeholder="Instructions or additional information..."
+        rows={3}
+        className="w-full rounded-xl border border-[#D1D5DB] p-3 text-sm"
+      />
+    </div>
+
+    {assignmentError && (
+      <p className="text-sm text-[#E4002B]" role="alert">
+        {assignmentError}
+      </p>
+    )}
+
+    <Button
+      type="submit"
+      variant="primary"
+      fullWidth
+      disabled={isAssigning}
+    >
+      {isAssigning ? "Saving assignment..." : "Confirm assignment"}
+    </Button>
+
+    <Button
+      type="button"
+      variant="secondary"
+      fullWidth
+      disabled={isAssigning}
+      onClick={() => setAssignTarget(null)}
+    >
+      Cancel
+    </Button>
+  </form>
+</BottomSheet>
+
 
       {/* Send Update Bottom Sheet */}
       <BottomSheet
