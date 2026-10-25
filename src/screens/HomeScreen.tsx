@@ -85,11 +85,11 @@ export function HomeScreen() {
     <button
       type="button"
       onClick={() => setIsAuthOpen(true)}
-      className="inline-flex items-center gap-1.5 bg-[#F7F8FA] hover:bg-[#EEF0F4] border border-[#E5E7EB] px-3 py-1.5 rounded-full transition-colors cursor-pointer"
+      className="inline-flex items-center gap-1.5 max-w-full bg-[#F7F8FA] hover:bg-[#EEF0F4] border border-[#E5E7EB] px-3 py-1.5 rounded-full transition-colors cursor-pointer"
       title="Click to manage account and ward location"
     >
-      <IconLocation size={16} className="text-[#003DA5] shrink-0" />
-      <span className="text-[12px] font-medium leading-[1.4] text-[#111827] whitespace-nowrap">
+      <IconLocation size={15} className="text-[#003DA5] shrink-0" />
+      <span className="text-[12px] font-medium leading-[1.4] text-[#111827] truncate">
         {currentUser?.ward || "Set your location"}
       </span>
     </button>
