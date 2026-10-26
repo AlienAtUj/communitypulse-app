@@ -26,10 +26,9 @@ service cloud.firestore {
     }
 
     // Incidents Collection
-    // Public read for community safety
-    // Only registered, authenticated users can report to prevent false updates and spam
+    // Only registered, authenticated users can view and report incidents
     match /incidents/{incidentId} {
-      allow read: if true;
+      allow read: if isRegisteredUser();
       allow create: if isRegisteredUser() && isValidIncident(request.resource.data);
       allow update: if isAuthenticated() && isValidIncident(request.resource.data);
       allow delete: if false; // Incidents cannot be deleted by users to preserve emergency audit logs

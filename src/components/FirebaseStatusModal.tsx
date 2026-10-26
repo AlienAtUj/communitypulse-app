@@ -39,7 +39,7 @@ export function FirebaseStatusModal({ isOpen, onClose }: FirebaseStatusModalProp
       }
 
       // Query live Firestore to verify active connection without fake records
-      const q = query(collection(db, "incidents"), limit(1));
+      const q = query(collection(db, "resources"), limit(1));
       const snap = await getDocs(q);
 
       const elapsed = Math.round(performance.now() - startTime);

@@ -11,6 +11,7 @@ import { HazardFilter } from "../components/HazardFilter";
 import { EmptyState } from "../components/EmptyState";
 import { Card } from "../components/Card";
 import { BottomNav } from "../components/BottomNav";
+import { AuthModal } from "../components/AuthModal";
 import { IconList } from "../components/icons";
 
 export function UpdatesScreen() {
@@ -22,9 +23,12 @@ export function UpdatesScreen() {
     currentUser,
   } = useData();
 
+  const isRegistered = Boolean(currentUser && !currentUser.isAnonymous);
+
   const [tab, setTab] = useState<"active" | "resolved">("active");
   const [scope, setScope] = useState<"nearby" | "mine" | "all">("nearby");
   const [selectedHazard, setSelectedHazard] = useState<HazardCategory>("all");
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [loading, setLoading] = useState<boolean>(
     () => !visitedScreens["updates"]
   );
@@ -39,35 +43,55 @@ export function UpdatesScreen() {
     }
   }, [visitedScreens, markScreenVisited]);
 
-  const scopedIncidents = filterNearbyIncidents(incidents, currentUser, {
-    scope,
-  });
+  const scopedIncidents = isRegistered
+    ? filterNearbyIncidents(incidents, currentUser, {
+        scope,
+      })
+    : [];
 
   const activeCount = scopedIncidents.filter((i) => i.status !== "resolved").length;
-  const displayedIncidents = filterIncidentsByTab(
-    scopedIncidents,
-    tab,
-    selectedHazard
-  );
+  const displayedIncidents = isRegistered
+    ? filterIncidentsByTab(
+        scopedIncidents,
+        tab,
+        selectedHazard
+      )
+    : [];
 
   return (
     <div className="mx-auto w-full max-w-[420px] min-h-screen bg-[#FFFFFF] flex flex-col pb-24">
       <ScreenHeader
         title="What's Happening"
-        subtitle={`${activeCount} ${
-          activeCount === 1 ? "active incident" : "active incidents"
-        } ${
-          scope === "nearby"
-            ? `near ${currentUser?.ward || "you"}`
-            : scope === "mine"
-            ? "reported by you"
-            : "in all wards"
-        }`}
+        subtitle={
+          !isRegistered
+            ? "Sign in required to view community reports"
+            : `${activeCount} ${
+                activeCount === 1 ? "active incident" : "active incidents"
+              } ${
+                scope === "nearby"
+                  ? `near ${currentUser?.ward || "you"}`
+                  : scope === "mine"
+                  ? "reported by you"
+                  : "in all wards"
+              }`
+        }
       />
 
       <main className="flex-1 px-5 pt-5 flex flex-col gap-4">
-        {/* Scope Selector: Near You | My Reports | All Wards */}
-        <div className="flex gap-2">
+        {!isRegistered ? (
+          <Card>
+            <EmptyState
+              icon={IconList}
+              heading="Sign in to View Reports"
+              body="To protect community data and ensure verified updates, incident reports are restricted to registered accounts."
+              actionLabel="Sign In or Register"
+              onAction={() => setIsAuthOpen(true)}
+            />
+          </Card>
+        ) : (
+          <>
+            {/* Scope Selector: Near You | My Reports | All Wards */}
+            <div className="flex gap-2">
           <button
             type="button"
             onClick={() => setScope("nearby")}
@@ -222,7 +246,11 @@ export function UpdatesScreen() {
             />
           </Card>
         )}
+          </>
+        )}
       </main>
+
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
 
       <BottomNav />
     </div>

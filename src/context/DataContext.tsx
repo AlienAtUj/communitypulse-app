@@ -38,6 +38,7 @@ import {
   signInUser,
   signOutCurrentUser,
   updateUserLocationInDb,
+  updateUserPhoneAndAlertsInDb,
 } from "../lib/authService";
 import { isFirebaseConfigured } from "../lib/firebase";
 
@@ -63,12 +64,20 @@ interface DataContextValue {
     pass: string,
     name: string,
     ward?: string,
-    coordinates?: { lat: number; lng: number }
+    coordinates?: { lat: number; lng: number },
+    phoneNumber?: string,
+    notifySms?: boolean,
+    notifyWhatsapp?: boolean
   ) => Promise<void>;
   updateUserLocation: (
     ward: string,
     coordinates?: { lat: number; lng: number }
   ) => Promise<void>;
+  updateUserPhoneAndAlerts: (prefs: {
+    phoneNumber: string;
+    notifySms: boolean;
+    notifyWhatsapp: boolean;
+  }) => Promise<void>;
   signIn: (email: string, pass: string) => Promise<void>;
   signOut: () => Promise<void>;
 
@@ -152,12 +161,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setToast(null);
   }, []);
 
-  // Subscribe to real-time collections
+  // Only subscribe to real-time incidents when a verified user is authenticated
   useEffect(() => {
+    if (!currentUser || currentUser.isAnonymous) {
+      setIncidents([]);
+      return;
+    }
+
     const unsubIncidents = subscribeToIncidents((liveIncidents) => {
       setIncidents(liveIncidents);
     });
 
+    return () => {
+      unsubIncidents();
+    };
+  }, [currentUser]);
+
+  // Subscribe to public emergency awareness (Alerts, Outages, Resources, Auth)
+  useEffect(() => {
     const unsubAlerts = subscribeToAlerts((liveAlert) => {
       setActiveAlert(liveAlert);
     });
@@ -179,7 +200,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
-      unsubIncidents();
       unsubAlerts();
       unsubOutages();
       unsubResources();
@@ -195,9 +215,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       pass: string,
       name: string,
       ward?: string,
-      coordinates?: { lat: number; lng: number }
+      coordinates?: { lat: number; lng: number },
+      phoneNumber?: string,
+      notifySms: boolean = true,
+      notifyWhatsapp: boolean = true
     ) => {
-      const user = await signUpUser(email, pass, name, ward, coordinates);
+      const user = await signUpUser(
+        email,
+        pass,
+        name,
+        ward,
+        coordinates,
+        phoneNumber,
+        notifySms,
+        notifyWhatsapp
+      );
       setCurrentUser(user);
       showToast(`Welcome to CommunityPulse, ${user.displayName || "Resident"}!`, "success");
     },
@@ -210,6 +242,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       await updateUserLocationInDb(currentUser.uid, ward, coordinates);
       setCurrentUser((prev) => (prev ? { ...prev, ward, coordinates } : null));
       showToast(`Location updated to ${ward}`, "success");
+    },
+    [currentUser, showToast]
+  );
+
+  const updateUserPhoneAndAlerts = useCallback(
+    async (prefs: {
+      phoneNumber: string;
+      notifySms: boolean;
+      notifyWhatsapp: boolean;
+    }) => {
+      if (!currentUser) return;
+      await updateUserPhoneAndAlertsInDb(currentUser.uid, prefs);
+      setCurrentUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              phoneNumber: prefs.phoneNumber,
+              notifySms: prefs.notifySms,
+              notifyWhatsapp: prefs.notifyWhatsapp,
+            }
+          : null
+      );
+      showToast("Notification preferences updated!", "success");
     },
     [currentUser, showToast]
   );
@@ -430,6 +485,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         isLiveDatabase,
         signUp,
         updateUserLocation,
+        updateUserPhoneAndAlerts,
         signIn,
         signOut,
       }}

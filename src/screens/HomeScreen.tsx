@@ -40,38 +40,47 @@ export function HomeScreen() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isDbStatusOpen, setIsDbStatusOpen] = useState(false);
 
+  const isRegistered = Boolean(currentUser && !currentUser.isAnonymous);
+
   // Filter so residents only see incidents near them or reported by them
-  const nearbyIncidents = filterNearbyIncidents(incidents, currentUser, {
-    scope: "nearby",
-  });
+  const nearbyIncidents = isRegistered
+    ? filterNearbyIncidents(incidents, currentUser, {
+        scope: "nearby",
+      })
+    : [];
 
   const activeIncidentsCount = nearbyIncidents.filter(
     (inc) => inc.status !== "resolved"
   ).length;
 
-  const activeFiltered = sortIncidents(
-    filterIncidentsByHazard(
-      nearbyIncidents.filter((inc) => inc.status !== "resolved"),
-      selectedHazard
-    )
-  );
+  const activeFiltered = isRegistered
+    ? sortIncidents(
+        filterIncidentsByHazard(
+          nearbyIncidents.filter((inc) => inc.status !== "resolved"),
+          selectedHazard
+        )
+      )
+    : [];
 
-  const myRecentReports = filterIncidentsByHazard(
-    incidents.filter(
-      (inc) =>
-        inc.isMine ||
-        (currentUser?.uid &&
-          (inc as unknown as { userId?: string }).userId === currentUser.uid)
-    ),
-    selectedHazard
-  ).slice(0, 2);
+  const myRecentReports = isRegistered
+    ? filterIncidentsByHazard(
+        incidents.filter(
+          (inc) =>
+            inc.isMine ||
+            (currentUser?.uid &&
+              (inc as unknown as { userId?: string }).userId === currentUser.uid)
+        ),
+        selectedHazard
+      ).slice(0, 2)
+    : [];
 
-  const displayedHomeIncidents =
-    selectedHazard === "all"
+  const displayedHomeIncidents = isRegistered
+    ? selectedHazard === "all"
       ? myRecentReports.length > 0
         ? myRecentReports
         : activeFiltered.slice(0, 2)
-      : activeFiltered;
+      : activeFiltered
+    : [];
 
   const hour = new Date().getHours();
   const timeGreeting =
@@ -154,7 +163,9 @@ export function HomeScreen() {
                       What's Happening
                     </h3>
                     <p className="text-[12px] font-normal leading-[1.4] text-[#6B7280] break-words">
-                      {activeIncidentsCount} active incidents &amp; outage schedule
+                      {isRegistered
+                        ? `${activeIncidentsCount} active incidents & outage schedule`
+                        : "Sign in to view local community reports"}
                     </p>
                   </div>
                 </div>
@@ -188,7 +199,9 @@ export function HomeScreen() {
         {/* Section: YOUR RECENT REPORTS & NEARBY */}
         <section>
           <SectionLabel>
-            {selectedHazard === "all"
+            {!isRegistered
+              ? "COMMUNITY REPORTS"
+              : selectedHazard === "all"
               ? myRecentReports.length > 0
                 ? "YOUR REPORTS & NEARBY"
                 : currentUser?.ward
@@ -197,52 +210,66 @@ export function HomeScreen() {
               : "INCIDENTS NEAR YOU"}
           </SectionLabel>
 
-          <div className="mb-3">
-            <HazardFilter
-              selected={selectedHazard}
-              onChange={setSelectedHazard}
-              ariaLabel="Filter Home incidents by hazard type"
-            />
-          </div>
-
-          {displayedHomeIncidents.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              {displayedHomeIncidents.map((incident) => (
-                <IncidentCard
-                  key={incident.id}
-                  incident={incident}
-                  onClick={(inc) => setSelectedIncidentId(inc.id)}
-                />
-              ))}
-            </div>
-          ) : (
+          {!isRegistered ? (
             <Card>
               <EmptyState
                 icon={IconReport}
-                heading={
-                  selectedHazard !== "all"
-                    ? "No matching incidents"
-                    : "All clear near you"
-                }
-                body={
-                  selectedHazard !== "all"
-                    ? "No active incidents for this hazard type in your area."
-                    : currentUser?.ward
-                    ? `No active disruptions reported near ${currentUser.ward}. Tap Report a Problem to log a local issue.`
-                    : "No active disruptions reported near you. Tap Report a Problem to log a local issue."
-                }
-                actionLabel={
-                  selectedHazard !== "all"
-                    ? "Show All Types"
-                    : "Report a Problem"
-                }
-                onAction={() =>
-                  selectedHazard !== "all"
-                    ? setSelectedHazard("all")
-                    : navigate("/report")
-                }
+                heading="Sign in to view reports"
+                body="Community incident reports and local hazard updates are only accessible to registered accounts."
+                actionLabel="Sign In or Register"
+                onAction={() => setIsAuthOpen(true)}
               />
             </Card>
+          ) : (
+            <>
+              <div className="mb-3">
+                <HazardFilter
+                  selected={selectedHazard}
+                  onChange={setSelectedHazard}
+                  ariaLabel="Filter Home incidents by hazard type"
+                />
+              </div>
+
+              {displayedHomeIncidents.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  {displayedHomeIncidents.map((incident) => (
+                    <IncidentCard
+                      key={incident.id}
+                      incident={incident}
+                      onClick={(inc) => setSelectedIncidentId(inc.id)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <EmptyState
+                    icon={IconReport}
+                    heading={
+                      selectedHazard !== "all"
+                        ? "No matching incidents"
+                        : "All clear near you"
+                    }
+                    body={
+                      selectedHazard !== "all"
+                        ? "No active incidents for this hazard type in your area."
+                        : currentUser?.ward
+                        ? `No active disruptions reported near ${currentUser.ward}. Tap Report a Problem to log a local issue.`
+                        : "No active disruptions reported near you. Tap Report a Problem to log a local issue."
+                    }
+                    actionLabel={
+                      selectedHazard !== "all"
+                        ? "Show All Types"
+                        : "Report a Problem"
+                    }
+                    onAction={() =>
+                      selectedHazard !== "all"
+                        ? setSelectedHazard("all")
+                        : navigate("/report")
+                    }
+                  />
+                </Card>
+              )}
+            </>
           )}
         </section>
 

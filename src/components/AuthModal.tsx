@@ -22,11 +22,18 @@ export function AuthModal({
   const [email, setEmail] = useState("");
   const [ward, setWard] = useState("");
   const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [notifySms, setNotifySms] = useState(true);
+  const [notifyWhatsapp, setNotifyWhatsapp] = useState(true);
   const [isLocating, setIsLocating] = useState(false);
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [isEditingLocation, setIsEditingLocation] = useState(false);
   const [editWard, setEditWard] = useState("");
+  const [isEditingAlerts, setIsEditingAlerts] = useState(false);
+  const [editPhone, setEditPhone] = useState("");
+  const [editSms, setEditSms] = useState(true);
+  const [editWhatsapp, setEditWhatsapp] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const {
@@ -34,6 +41,7 @@ export function AuthModal({
     signIn,
     signUp,
     updateUserLocation,
+    updateUserPhoneAndAlerts,
     signOut,
     showToast,
   } = useData();
@@ -123,7 +131,10 @@ export function AuthModal({
           password,
           name.trim(),
           ward.trim() || undefined,
-          gpsCoords || undefined
+          gpsCoords || undefined,
+          phoneNumber.trim() || undefined,
+          notifySms,
+          notifyWhatsapp
         );
       } else {
         await signIn(formattedEmail, password);
@@ -154,6 +165,22 @@ export function AuthModal({
       setIsEditingLocation(false);
     } catch {
       showToast("Error updating location", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveNotificationPrefs = async () => {
+    setIsLoading(true);
+    try {
+      await updateUserPhoneAndAlerts({
+        phoneNumber: editPhone.trim(),
+        notifySms: editSms,
+        notifyWhatsapp: editWhatsapp,
+      });
+      setIsEditingAlerts(false);
+    } catch {
+      showToast("Error updating notification preferences", "error");
     } finally {
       setIsLoading(false);
     }
@@ -281,6 +308,94 @@ export function AuthModal({
                       onClick={handleSaveUpdatedLocation}
                     >
                       Save Location
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* WhatsApp & SMS Notification Preferences */}
+            <div className="p-4 rounded-2xl bg-[#F7F8FA] border border-[#E5E7EB] flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-bold uppercase tracking-wider text-[#6B7280]">
+                  WhatsApp &amp; SMS Alerts
+                </span>
+                {!isEditingAlerts && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditPhone(currentUser.phoneNumber || "");
+                      setEditSms(currentUser.notifySms !== false);
+                      setEditWhatsapp(currentUser.notifyWhatsapp !== false);
+                      setIsEditingAlerts(true);
+                    }}
+                    className="text-[12px] font-bold text-[#003DA5] underline cursor-pointer"
+                  >
+                    Manage
+                  </button>
+                )}
+              </div>
+
+              {!isEditingAlerts ? (
+                <div className="flex flex-col gap-1 text-[13px]">
+                  <p className="font-semibold text-[#111827]">
+                    Cell: {currentUser.phoneNumber || "No number registered yet"}
+                  </p>
+                  <div className="flex items-center gap-2 text-[12px] text-[#4B5563] mt-0.5">
+                    <span className={`inline-flex items-center gap-1 font-bold ${currentUser.notifySms !== false ? "text-[#00A651]" : "text-[#9CA3AF]"}`}>
+                      <IconCheck size={14} /> SMS Alerts {currentUser.notifySms !== false ? "On" : "Off"}
+                    </span>
+                    <span>&bull;</span>
+                    <span className={`inline-flex items-center gap-1 font-bold ${currentUser.notifyWhatsapp !== false ? "text-[#00A651]" : "text-[#9CA3AF]"}`}>
+                      <IconCheck size={14} /> WhatsApp {currentUser.notifyWhatsapp !== false ? "On" : "Off"}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5 pt-1">
+                  <Input
+                    label="Mobile Number"
+                    placeholder="e.g. 082 123 4567 or +27..."
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                  />
+                  <label className="flex items-center gap-2 text-[13px] text-[#111827] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editSms}
+                      onChange={(e) => setEditSms(e.target.checked)}
+                      className="w-4 h-4 accent-[#003DA5] rounded"
+                    />
+                    <span>Receive instant SMS for urgent emergencies</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-[13px] text-[#111827] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editWhatsapp}
+                      onChange={(e) => setEditWhatsapp(e.target.checked)}
+                      className="w-4 h-4 accent-[#00A651] rounded"
+                    />
+                    <span>Receive WhatsApp updates for load-shedding &amp; repairs</span>
+                  </label>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="md"
+                      className="flex-1"
+                      onClick={() => setIsEditingAlerts(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="md"
+                      className="flex-1"
+                      disabled={isLoading}
+                      onClick={handleSaveNotificationPrefs}
+                    >
+                      Save Preferences
                     </Button>
                   </div>
                 </div>
@@ -428,6 +543,42 @@ export function AuthModal({
                         )}
                       </div>
                     )}
+                  </div>
+
+                  {/* WhatsApp & SMS Notification Setup */}
+                  <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-[#F7F8FA] border border-[#E5E7EB]">
+                    <span className="text-[12px] font-bold uppercase tracking-wider text-[#111827]">
+                      SMS &amp; WhatsApp Notifications
+                    </span>
+                    <p className="text-[12px] text-[#6B7280]">
+                      Get notified directly on your phone when outages occur or emergencies are reported in your area.
+                    </p>
+                    <Input
+                      label="Mobile Phone Number (Optional)"
+                      placeholder="e.g. 082 123 4567 or +2782..."
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                    />
+                    <div className="flex flex-col gap-1.5 pt-1">
+                      <label className="flex items-center gap-2 text-[12px] text-[#111827] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notifySms}
+                          onChange={(e) => setNotifySms(e.target.checked)}
+                          className="w-4 h-4 accent-[#003DA5] rounded"
+                        />
+                        <span>Send me SMS alerts for critical emergencies</span>
+                      </label>
+                      <label className="flex items-center gap-2 text-[12px] text-[#111827] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notifyWhatsapp}
+                          onChange={(e) => setNotifyWhatsapp(e.target.checked)}
+                          className="w-4 h-4 accent-[#00A651] rounded"
+                        />
+                        <span>Send me WhatsApp updates for load-shedding &amp; restorations</span>
+                      </label>
+                    </div>
                   </div>
                 </>
               )}

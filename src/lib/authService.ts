@@ -14,6 +14,9 @@ export interface UserProfile {
   email: string | null;
   displayName: string | null;
   ward?: string;
+  phoneNumber?: string;
+  notifySms?: boolean;
+  notifyWhatsapp?: boolean;
   coordinates?: { lat: number; lng: number };
   role?: "resident" | "responder" | "ngo" | "admin";
   isAnonymous?: boolean;
@@ -28,7 +31,10 @@ export async function signUpUser(
   pass: string,
   displayName: string,
   ward?: string,
-  coordinates?: { lat: number; lng: number }
+  coordinates?: { lat: number; lng: number },
+  phoneNumber?: string,
+  notifySms: boolean = true,
+  notifyWhatsapp: boolean = true
 ): Promise<UserProfile> {
   if (!auth) {
     // Fallback profile if Firebase credentials are pending
@@ -38,6 +44,9 @@ export async function signUpUser(
       displayName,
       ward: ward || undefined,
       coordinates,
+      phoneNumber: phoneNumber || undefined,
+      notifySms,
+      notifyWhatsapp,
       role: "resident",
       isAnonymous: false,
     };
@@ -55,6 +64,9 @@ export async function signUpUser(
     email: user.email,
     displayName: displayName || user.email?.split("@")[0] || "Resident",
     ward: ward?.trim() || undefined,
+    phoneNumber: phoneNumber?.trim() || undefined,
+    notifySms,
+    notifyWhatsapp,
     coordinates,
     role: "resident",
     isAnonymous: false,
@@ -70,6 +82,35 @@ export async function signUpUser(
   }
 
   return profile;
+}
+
+/**
+ * Update user phone number and SMS/WhatsApp alert preferences.
+ */
+export async function updateUserPhoneAndAlertsInDb(
+  uid: string,
+  prefs: {
+    phoneNumber: string;
+    notifySms: boolean;
+    notifyWhatsapp: boolean;
+  }
+): Promise<void> {
+  if (db) {
+    try {
+      await setDoc(
+        doc(db, "users", uid),
+        {
+          phoneNumber: prefs.phoneNumber.trim(),
+          notifySms: prefs.notifySms,
+          notifyWhatsapp: prefs.notifyWhatsapp,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn("Could not update phone alert preferences in Firestore:", err);
+    }
+  }
 }
 
 /**
@@ -117,6 +158,9 @@ export async function signInUser(email: string, pass: string): Promise<UserProfi
   let ward: string | undefined = undefined;
   let role: UserProfile["role"] = "resident";
   let coordinates: { lat: number; lng: number } | undefined = undefined;
+  let phoneNumber: string | undefined = undefined;
+  let notifySms: boolean | undefined = undefined;
+  let notifyWhatsapp: boolean | undefined = undefined;
 
   if (db) {
     try {
@@ -126,6 +170,9 @@ export async function signInUser(email: string, pass: string): Promise<UserProfi
         if (data.ward) ward = data.ward;
         if (data.role) role = data.role;
         if (data.coordinates) coordinates = data.coordinates;
+        if (data.phoneNumber) phoneNumber = data.phoneNumber;
+        if (typeof data.notifySms === "boolean") notifySms = data.notifySms;
+        if (typeof data.notifyWhatsapp === "boolean") notifyWhatsapp = data.notifyWhatsapp;
       }
     } catch (err) {
       console.warn("Could not fetch user profile from Firestore:", err);
@@ -138,6 +185,9 @@ export async function signInUser(email: string, pass: string): Promise<UserProfi
     displayName: user.displayName || user.email?.split("@")[0] || "Resident",
     ward,
     coordinates,
+    phoneNumber,
+    notifySms,
+    notifyWhatsapp,
     role,
     isAnonymous: user.isAnonymous,
   };
@@ -174,6 +224,9 @@ export function subscribeToAuth(
     let ward: string | undefined = undefined;
     let role: UserProfile["role"] = "resident";
     let coordinates: { lat: number; lng: number } | undefined = undefined;
+    let phoneNumber: string | undefined = undefined;
+    let notifySms: boolean | undefined = undefined;
+    let notifyWhatsapp: boolean | undefined = undefined;
 
     if (db) {
       try {
@@ -183,6 +236,9 @@ export function subscribeToAuth(
           if (data.ward) ward = data.ward;
           if (data.role) role = data.role;
           if (data.coordinates) coordinates = data.coordinates;
+          if (data.phoneNumber) phoneNumber = data.phoneNumber;
+          if (typeof data.notifySms === "boolean") notifySms = data.notifySms;
+          if (typeof data.notifyWhatsapp === "boolean") notifyWhatsapp = data.notifyWhatsapp;
         }
       } catch (e) {
         console.warn("Error fetching user profile:", e);
@@ -195,6 +251,9 @@ export function subscribeToAuth(
       displayName: user.displayName || user.email?.split("@")[0] || "Resident",
       ward,
       coordinates,
+      phoneNumber,
+      notifySms,
+      notifyWhatsapp,
       role,
       isAnonymous: user.isAnonymous,
     });
