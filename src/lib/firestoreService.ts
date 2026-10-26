@@ -1,3 +1,4 @@
+
 import {
   collection,
   doc,
@@ -12,7 +13,9 @@ import {
   serverTimestamp,
   increment,
 } from "firebase/firestore";
-import { db, auth, isFirebaseConfigured } from "./firebase";
+
+import { db, auth } from "./firebase";
+
 import {
   Incident,
   ScheduledOutage,
@@ -21,6 +24,7 @@ import {
   IncidentType,
   IncidentStatus,
   SEED_RESOURCES,
+  NgoOffer,
 } from "./data";
 
 const LOCAL_STORAGE_KEY_INCIDENTS = "cp_real_incidents";
@@ -29,12 +33,29 @@ const LOCAL_STORAGE_KEY_RESOURCES = "cp_real_resources";
 const LOCAL_STORAGE_KEY_ALERT = "cp_real_alert";
 const LOCAL_STORAGE_KEY_NGO = "cp_real_ngo_offers";
 
-// Helper for local storage persistence when Firestore is offline or unconfigured
+const INCIDENT_TYPES: IncidentType[] = [
+  "power",
+  "water",
+  "food",
+  "road",
+  "flood",
+  "fire",
+];
+
+function isIncidentType(value: unknown): value is IncidentType {
+  return (
+    typeof value === "string" &&
+    INCIDENT_TYPES.includes(value as IncidentType)
+  );
+}
+
+// Helper for local storage persistence.
 function getLocalStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
+
   try {
     const item = window.localStorage.getItem(key);
-    return item ? JSON.parse(item) : fallback;
+    return item ? (JSON.parse(item) as T) : fallback;
   } catch {
     return fallback;
   }
@@ -42,6 +63,7 @@ function getLocalStorage<T>(key: string, fallback: T): T {
 
 function setLocalStorage<T>(key: string, value: T): void {
   if (typeof window === "undefined") return;
+
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch (err) {
@@ -49,11 +71,69 @@ function setLocalStorage<T>(key: string, value: T): void {
   }
 }
 
+/**
+ * Converts both the old object format and the new array format
+ * into an array of independent NGO offers.
+ */
+function normalizeNgoOffers(value: unknown): NgoOffer[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter(
+        (item): item is Record<string, unknown> =>
+          typeof item === "object" && item !== null
+      )
+      .filter((item) => isIncidentType(item.type))
+      .map((item, index) => ({
+        id:
+          typeof item.id === "string"
+            ? item.id
+            : `LEGACY-OFFER-${index}`,
+        type: item.type as IncidentType,
+        ngoName:
+          typeof item.ngoName === "string"
+            ? item.ngoName
+            : "Community NGO",
+        provide: typeof item.provide === "string" ? item.provide : "",
+        quantity: typeof item.quantity === "string" ? item.quantity : "",
+        eta: typeof item.eta === "string" ? item.eta : "",
+        createdAt: item.createdAt,
+      }));
+  }
+
+  // Migrate the previous format:
+  // { water: { provide, quantity, eta }, food: { ... } }
+  if (typeof value === "object" && value !== null) {
+    const legacy = value as Record<string, unknown>;
+    const migrated: NgoOffer[] = [];
+
+    for (const [type, details] of Object.entries(legacy)) {
+      if (!isIncidentType(type)) continue;
+      if (typeof details !== "object" || details === null) continue;
+
+      const offer = details as Record<string, unknown>;
+
+      migrated.push({
+        id: `LEGACY-${type}`,
+        type,
+        ngoName: "Community NGO",
+        provide:
+          typeof offer.provide === "string" ? offer.provide : "",
+        quantity:
+          typeof offer.quantity === "string" ? offer.quantity : "",
+        eta: typeof offer.eta === "string" ? offer.eta : "",
+      });
+    }
+
+    return migrated;
+  }
+
+  return [];
+}
+
 let seedingPromise: Promise<void> | null = null;
 
 /**
- * Initializes verified South African emergency relief services into Firestore if empty.
- * NOTE: Mock dummy incidents, mock outages, and fake alerts are NEVER auto-seeded.
+ * Initializes emergency resources if the Firestore collection is empty.
  */
 export async function seedLiveDatabaseIfEmpty(): Promise<void> {
   if (!db) return;
@@ -62,8 +142,10 @@ export async function seedLiveDatabaseIfEmpty(): Promise<void> {
   seedingPromise = (async () => {
     try {
       const snap = await getDocs(collection(db, "resources"));
+
       if (snap.empty) {
-        console.log("Initializing verified community emergency resources...");
+        console.log("Initializing community emergency resources...");
+
         for (const res of SEED_RESOURCES) {
           await setDoc(doc(db, "resources", res.id), {
             ...res,
@@ -71,8 +153,8 @@ export async function seedLiveDatabaseIfEmpty(): Promise<void> {
           });
         }
       }
-    } catch (e) {
-      console.warn("Notice: Resource init check:", e);
+    } catch (error) {
+      console.warn("Resource initialization check:", error);
     }
   })();
 
@@ -80,10 +162,11 @@ export async function seedLiveDatabaseIfEmpty(): Promise<void> {
 }
 
 /**
- * Purges any leftover legacy mock data (INC-001..006, SCH-001..005, ALERT-001, RES-001..005)
- * from both Firestore and local browser storage so only real community data exists.
+ * Purges leftover legacy mock data.
  */
-export async function purgeMockDataFromDb(): Promise<{ purgedCount: number }> {
+export async function purgeMockDataFromDb(): Promise<{
+  purgedCount: number;
+}> {
   let count = 0;
 
   if (typeof window !== "undefined") {
@@ -94,50 +177,61 @@ export async function purgeMockDataFromDb(): Promise<{ purgedCount: number }> {
       window.localStorage.removeItem(LOCAL_STORAGE_KEY_NGO);
       window.localStorage.removeItem(LOCAL_STORAGE_KEY_RESOURCES);
     } catch {
-      // ignore
+      // Ignore local storage errors.
     }
   }
 
   if (!db) return { purgedCount: 0 };
 
-  const mockIncidentIds = ["INC-001", "INC-002", "INC-003", "INC-004", "INC-005", "INC-006"];
-  const mockOutageIds = ["SCH-001", "SCH-002", "SCH-003", "SCH-004", "SCH-005"];
-  const mockAlertIds = ["ALERT-001"];
-  const mockResourceIds = ["RES-001", "RES-002", "RES-003", "RES-004", "RES-005"];
+  const collectionsToPurge: {
+    collectionName: string;
+    ids: string[];
+  }[] = [
+    {
+      collectionName: "incidents",
+      ids: [
+        "INC-001",
+        "INC-002",
+        "INC-003",
+        "INC-004",
+        "INC-005",
+        "INC-006",
+      ],
+    },
+    {
+      collectionName: "outages",
+      ids: [
+        "SCH-001",
+        "SCH-002",
+        "SCH-003",
+        "SCH-004",
+        "SCH-005",
+      ],
+    },
+    {
+      collectionName: "alerts",
+      ids: ["ALERT-001"],
+    },
+    {
+      collectionName: "resources",
+      ids: [
+        "RES-001",
+        "RES-002",
+        "RES-003",
+        "RES-004",
+        "RES-005",
+      ],
+    },
+  ];
 
-  for (const id of mockIncidentIds) {
-    try {
-      await deleteDoc(doc(db, "incidents", id));
-      count++;
-    } catch {
-      // document may not exist
-    }
-  }
-
-  for (const id of mockOutageIds) {
-    try {
-      await deleteDoc(doc(db, "outages", id));
-      count++;
-    } catch {
-      // document may not exist
-    }
-  }
-
-  for (const id of mockAlertIds) {
-    try {
-      await deleteDoc(doc(db, "alerts", id));
-      count++;
-    } catch {
-      // document may not exist
-    }
-  }
-
-  for (const id of mockResourceIds) {
-    try {
-      await deleteDoc(doc(db, "resources", id));
-      count++;
-    } catch {
-      // document may not exist
+  for (const group of collectionsToPurge) {
+    for (const id of group.ids) {
+      try {
+        await deleteDoc(doc(db, group.collectionName, id));
+        count++;
+      } catch {
+        // Ignore missing documents or deletion errors.
+      }
     }
   }
 
@@ -145,34 +239,34 @@ export async function purgeMockDataFromDb(): Promise<{ purgedCount: number }> {
 }
 
 /**
- * Real-time subscription to Incidents collection
+ * Subscribe to incidents.
  */
 export function subscribeToIncidents(
   callback: (incidents: Incident[]) => void
 ): () => void {
   if (!db) {
-    const local = getLocalStorage<Incident[]>(
-      LOCAL_STORAGE_KEY_INCIDENTS,
-      []
+    callback(
+      getLocalStorage<Incident[]>(LOCAL_STORAGE_KEY_INCIDENTS, [])
     );
-    callback(local);
     return () => {};
   }
 
-  // Trigger resource verification if brand new database
-  seedLiveDatabaseIfEmpty();
+  void seedLiveDatabaseIfEmpty();
 
   const q = query(
     collection(db, "incidents"),
     orderBy("createdAt", "desc"),
     limit(100)
   );
+
   return onSnapshot(
     q,
     (snapshot) => {
       const list: Incident[] = [];
+
       snapshot.forEach((d) => {
         const data = d.data();
+
         list.push({
           id: d.id,
           type: data.type as IncidentType,
@@ -190,26 +284,28 @@ export function subscribeToIncidents(
           latestUpdateBy: data.latestUpdateBy,
           isMine: Boolean(data.isMine),
           coordinates: data.coordinates,
-          accuracy: data.accuracy ? Number(data.accuracy) : undefined,
+          accuracy:
+            data.accuracy != null
+              ? Number(data.accuracy)
+              : undefined,
         });
       });
 
       setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, list);
       callback(list);
     },
-    (err) => {
-      console.warn("Firestore incidents listener error (using cache):", err);
-      const fallback = getLocalStorage<Incident[]>(
-        LOCAL_STORAGE_KEY_INCIDENTS,
-        []
+    (error) => {
+      console.warn("Incidents listener error:", error);
+
+      callback(
+        getLocalStorage<Incident[]>(LOCAL_STORAGE_KEY_INCIDENTS, [])
       );
-      callback(fallback);
     }
   );
 }
 
 /**
- * Add a new real Incident to Firestore
+ * Create an incident.
  */
 export async function createIncidentInDb(
   report: {
@@ -222,25 +318,26 @@ export async function createIncidentInDb(
   },
   userId?: string
 ): Promise<string> {
-  // Verified account check: guest reporting is disabled to prevent false updates
   const activeUser = auth?.currentUser;
   const effectiveUserId = activeUser?.uid || userId;
+
   if (!effectiveUserId || activeUser?.isAnonymous) {
     throw new Error(
-      "A verified registered account is required to report incidents. Guest reporting is disabled to prevent false updates."
+      "A verified registered account is required to report incidents."
     );
   }
 
   const now = new Date();
-  const hours = String(now.getHours()).padStart(2, "0");
-  const mins = String(now.getMinutes()).padStart(2, "0");
-  const timeStr = `${hours}:${mins}`;
+  const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
+    now.getMinutes()
+  ).padStart(2, "0")}`;
 
   const fullLocation = report.landmark?.trim()
     ? `${report.landmark.trim()}, ${report.location}`
     : report.location;
 
   const safeLocation = (fullLocation.trim() || "Ward 8").slice(0, 190);
+
   const safeDescription = (
     report.description?.trim() ||
     "Reported by resident via CommunityPulse mobile."
@@ -248,21 +345,19 @@ export async function createIncidentInDb(
 
   const newId = `INC-${Date.now().toString().slice(-6)}`;
 
-  const incidentData: Partial<Incident> & {
-    createdAt: unknown;
-    updatedAt: unknown;
-    userId?: string;
-  } = {
+  const incidentData = {
     id: newId,
     type: report.type,
     location: safeLocation,
     affected: 1,
     confirmations: 1,
-    status: "reported",
+    status: "reported" as IncidentStatus,
     priority:
-      report.type === "flood" || report.type === "fire" ? "critical" : "high",
+      report.type === "flood" || report.type === "fire"
+        ? "critical"
+        : "high",
     facilities:
-      report.description && report.description.toLowerCase().includes("clinic")
+      report.description?.toLowerCase().includes("clinic")
         ? ["Clinic fridge"]
         : ["Local area"],
     time: timeStr,
@@ -270,9 +365,9 @@ export async function createIncidentInDb(
     isMine: true,
     coordinates: report.coordinates,
     accuracy: report.accuracy,
-    userId: effectiveUserId || "anonymous",
-    createdAt: db ? serverTimestamp() : new Date().toISOString(),
-    updatedAt: db ? serverTimestamp() : new Date().toISOString(),
+    userId: effectiveUserId,
+    createdAt: db ? serverTimestamp() : now.toISOString(),
+    updatedAt: db ? serverTimestamp() : now.toISOString(),
   };
 
   if (db) {
@@ -282,15 +377,18 @@ export async function createIncidentInDb(
       LOCAL_STORAGE_KEY_INCIDENTS,
       []
     );
-    const updated = [incidentData as Incident, ...list];
-    setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, updated);
+
+    setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, [
+      incidentData as Incident,
+      ...list,
+    ]);
   }
 
   return newId;
 }
 
 /**
- * Update incident status, ETA, and resolution in Firestore
+ * Update incident status and ETA.
  */
 export async function updateIncidentInDb(
   id: string,
@@ -298,44 +396,51 @@ export async function updateIncidentInDb(
   eta?: string
 ): Promise<void> {
   if (db) {
-    const ref = doc(db, "incidents", id);
     const updates: Record<string, unknown> = {
       status,
       updatedAt: serverTimestamp(),
     };
-    if (eta !== undefined) {
-      updates.eta = eta;
-    }
+
+    if (eta !== undefined) updates.eta = eta;
+
     if (status === "resolved") {
       updates.resolvedAt = new Date().toISOString();
     }
-    await updateDoc(ref, updates);
+
+    await updateDoc(doc(db, "incidents", id), updates);
   } else {
     const list = getLocalStorage<Incident[]>(
       LOCAL_STORAGE_KEY_INCIDENTS,
       []
     );
-    const updated = list.map((item) =>
-      item.id === id
-        ? {
-            ...item,
-            status,
-            eta: eta !== undefined ? eta : item.eta,
-            resolvedAt: status === "resolved" ? new Date().toISOString() : undefined,
-          }
-        : item
+
+    setLocalStorage(
+      LOCAL_STORAGE_KEY_INCIDENTS,
+      list.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status,
+              eta: eta !== undefined ? eta : item.eta,
+              resolvedAt:
+                status === "resolved"
+                  ? new Date().toISOString()
+                  : undefined,
+            }
+          : item
+      )
     );
-    setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, updated);
   }
 }
 
 /**
- * Atomically increment incident confirmation count in Firestore
+ * Increment incident confirmations.
  */
-export async function confirmIncidentInDb(id: string): Promise<void> {
+export async function confirmIncidentInDb(
+  id: string
+): Promise<void> {
   if (db) {
-    const ref = doc(db, "incidents", id);
-    await updateDoc(ref, {
+    await updateDoc(doc(db, "incidents", id), {
       confirmations: increment(1),
       updatedAt: serverTimestamp(),
     });
@@ -344,39 +449,48 @@ export async function confirmIncidentInDb(id: string): Promise<void> {
       LOCAL_STORAGE_KEY_INCIDENTS,
       []
     );
-    const updated = list.map((item) =>
-      item.id === id ? { ...item, confirmations: (item.confirmations || 0) + 1 } : item
+
+    setLocalStorage(
+      LOCAL_STORAGE_KEY_INCIDENTS,
+      list.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              confirmations: (item.confirmations || 0) + 1,
+            }
+          : item
+      )
     );
-    setLocalStorage(LOCAL_STORAGE_KEY_INCIDENTS, updated);
   }
 }
 
 /**
- * Add official responder update to incident in Firestore
+ * Add an official responder update.
  */
 export async function addIncidentUpdateInDb(
   incidentId: string,
   message: string,
   responder: string = "Municipal Dispatch"
 ): Promise<void> {
-  if (db) {
-    const ref = doc(db, "incidents", incidentId);
-    await updateDoc(ref, {
-      latestUpdate: message,
-      latestUpdateBy: responder,
-      updatedAt: serverTimestamp(),
-    });
-  }
+  if (!db) return;
+
+  await updateDoc(doc(db, "incidents", incidentId), {
+    latestUpdate: message,
+    latestUpdateBy: responder,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /**
- * Real-time subscription to Active Alerts collection
+ * Subscribe to active alerts.
  */
 export function subscribeToAlerts(
   callback: (alert: Alert | null) => void
 ): () => void {
   if (!db) {
-    callback(getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, null));
+    callback(
+      getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, null)
+    );
     return () => {};
   }
 
@@ -384,8 +498,10 @@ export function subscribeToAlerts(
     collection(db, "alerts"),
     (snapshot) => {
       let found: Alert | null = null;
+
       snapshot.forEach((d) => {
         const data = d.data();
+
         if (data.active !== false && !found) {
           found = {
             id: d.id,
@@ -395,19 +511,25 @@ export function subscribeToAlerts(
           };
         }
       });
+
       callback(found);
     },
     () => {
-      callback(getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, null));
+      callback(
+        getLocalStorage<Alert | null>(LOCAL_STORAGE_KEY_ALERT, null)
+      );
     }
   );
 }
 
 /**
- * Broadcast a new emergency alert to all residents in Firestore
+ * Broadcast an alert.
  */
-export async function broadcastAlertInDb(alert: Omit<Alert, "id">): Promise<string> {
+export async function broadcastAlertInDb(
+  alert: Omit<Alert, "id">
+): Promise<string> {
   const newId = `ALERT-${Date.now().toString().slice(-5)}`;
+
   const data = {
     ...alert,
     id: newId,
@@ -420,11 +542,12 @@ export async function broadcastAlertInDb(alert: Omit<Alert, "id">): Promise<stri
   } else {
     setLocalStorage(LOCAL_STORAGE_KEY_ALERT, data as Alert);
   }
+
   return newId;
 }
 
 /**
- * Dismiss active alert in Firestore
+ * Dismiss an alert.
  */
 export async function dismissAlertInDb(id: string): Promise<void> {
   if (db) {
@@ -434,24 +557,22 @@ export async function dismissAlertInDb(id: string): Promise<void> {
         updatedAt: serverTimestamp(),
       });
     } catch {
-      // Ignored
+      // Ignore errors.
     }
   }
+
   setLocalStorage(LOCAL_STORAGE_KEY_ALERT, null);
 }
 
 /**
- * Real-time subscription to Outage Schedules collection
+ * Subscribe to outage schedules.
  */
 export function subscribeToOutages(
   callback: (outages: ScheduledOutage[]) => void
 ): () => void {
   if (!db) {
     callback(
-      getLocalStorage<ScheduledOutage[]>(
-        LOCAL_STORAGE_KEY_OUTAGES,
-        []
-      )
+      getLocalStorage<ScheduledOutage[]>(LOCAL_STORAGE_KEY_OUTAGES, [])
     );
     return () => {};
   }
@@ -460,8 +581,10 @@ export function subscribeToOutages(
     collection(db, "outages"),
     (snapshot) => {
       const list: ScheduledOutage[] = [];
+
       snapshot.forEach((d) => {
         const data = d.data();
+
         list.push({
           id: d.id,
           type: data.type || "power",
@@ -473,27 +596,26 @@ export function subscribeToOutages(
           reminderSet: Boolean(data.reminderSet),
         });
       });
+
       setLocalStorage(LOCAL_STORAGE_KEY_OUTAGES, list);
       callback(list);
     },
     () => {
       callback(
-        getLocalStorage<ScheduledOutage[]>(
-          LOCAL_STORAGE_KEY_OUTAGES,
-          []
-        )
+        getLocalStorage<ScheduledOutage[]>(LOCAL_STORAGE_KEY_OUTAGES, [])
       );
     }
   );
 }
 
 /**
- * Create a new planned outage in Firestore
+ * Create an outage schedule.
  */
 export async function createOutageInDb(
   outage: Omit<ScheduledOutage, "id">
 ): Promise<string> {
   const newId = `SCH-${Date.now().toString().slice(-5)}`;
+
   const data = {
     ...outage,
     id: newId,
@@ -507,13 +629,18 @@ export async function createOutageInDb(
       LOCAL_STORAGE_KEY_OUTAGES,
       []
     );
-    setLocalStorage(LOCAL_STORAGE_KEY_OUTAGES, [data as ScheduledOutage, ...list]);
+
+    setLocalStorage(LOCAL_STORAGE_KEY_OUTAGES, [
+      data as ScheduledOutage,
+      ...list,
+    ]);
   }
+
   return newId;
 }
 
 /**
- * Toggle outage reminder in DB
+ * Toggle an outage reminder.
  */
 export async function toggleOutageReminderInDb(
   id: string,
@@ -522,30 +649,36 @@ export async function toggleOutageReminderInDb(
   if (db) {
     try {
       await updateDoc(doc(db, "outages", id), { reminderSet });
-    } catch (err) {
-      console.warn("Outage reminder update error:", err);
+    } catch (error) {
+      console.warn("Outage reminder update error:", error);
     }
   } else {
     const list = getLocalStorage<ScheduledOutage[]>(
       LOCAL_STORAGE_KEY_OUTAGES,
       []
     );
-    const updated = list.map((item) =>
-      item.id === id ? { ...item, reminderSet } : item
+
+    setLocalStorage(
+      LOCAL_STORAGE_KEY_OUTAGES,
+      list.map((item) =>
+        item.id === id ? { ...item, reminderSet } : item
+      )
     );
-    setLocalStorage(LOCAL_STORAGE_KEY_OUTAGES, updated);
   }
 }
 
 /**
- * Real-time subscription to Resources collection
+ * Subscribe to resources.
  */
 export function subscribeToResources(
   callback: (resources: Resource[]) => void
 ): () => void {
   if (!db) {
     callback(
-      getLocalStorage<Resource[]>(LOCAL_STORAGE_KEY_RESOURCES, SEED_RESOURCES)
+      getLocalStorage<Resource[]>(
+        LOCAL_STORAGE_KEY_RESOURCES,
+        SEED_RESOURCES
+      )
     );
     return () => {};
   }
@@ -554,8 +687,10 @@ export function subscribeToResources(
     collection(db, "resources"),
     (snapshot) => {
       const list: Resource[] = [];
+
       snapshot.forEach((d) => {
         const data = d.data();
+
         list.push({
           id: d.id,
           type: data.type || "water",
@@ -569,24 +704,29 @@ export function subscribeToResources(
           coordinates: data.coordinates || undefined,
         });
       });
+
       setLocalStorage(LOCAL_STORAGE_KEY_RESOURCES, list);
       callback(list);
     },
     () => {
       callback(
-        getLocalStorage<Resource[]>(LOCAL_STORAGE_KEY_RESOURCES, SEED_RESOURCES)
+        getLocalStorage<Resource[]>(
+          LOCAL_STORAGE_KEY_RESOURCES,
+          SEED_RESOURCES
+        )
       );
     }
   );
 }
 
 /**
- * Add a new relief resource in Firestore
+ * Create a resource.
  */
 export async function createResourceInDb(
   resource: Omit<Resource, "id">
 ): Promise<string> {
   const newId = `RES-${Date.now().toString().slice(-5)}`;
+
   const data = {
     ...resource,
     id: newId,
@@ -600,62 +740,150 @@ export async function createResourceInDb(
       LOCAL_STORAGE_KEY_RESOURCES,
       SEED_RESOURCES
     );
-    setLocalStorage(LOCAL_STORAGE_KEY_RESOURCES, [data as Resource, ...list]);
+
+    setLocalStorage(LOCAL_STORAGE_KEY_RESOURCES, [
+      data as Resource,
+      ...list,
+    ]);
   }
+
   return newId;
 }
 
 /**
- * Real-time subscription to NGO offers
+ * Subscribe to all NGO offers.
+ *
+ * Each offer is a separate document. Older Firestore documents that use
+ * an incident type as their document ID are still readable.
  */
 export function subscribeToNgoOffers(
-  callback: (offers: Record<string, { provide: string; quantity: string; eta: string }>) => void
+  callback: (offers: NgoOffer[]) => void
 ): () => void {
   if (!db) {
-    callback(getLocalStorage(LOCAL_STORAGE_KEY_NGO, {}));
+    const stored = getLocalStorage<unknown>(
+      LOCAL_STORAGE_KEY_NGO,
+      []
+    );
+
+    const offers = normalizeNgoOffers(stored);
+
+    // Save the migrated format for future reads.
+    setLocalStorage(LOCAL_STORAGE_KEY_NGO, offers);
+    callback(offers);
+
     return () => {};
   }
 
   return onSnapshot(
     collection(db, "ngo_offers"),
     (snapshot) => {
-      const result: Record<string, { provide: string; quantity: string; eta: string }> = {};
+      const offers: NgoOffer[] = [];
+
       snapshot.forEach((d) => {
         const data = d.data();
-        result[d.id] = {
-          provide: data.provide || "",
-          quantity: data.quantity || "",
-          eta: data.eta || "",
-        };
+
+        // Support legacy documents whose ID was the incident type.
+        const type = isIncidentType(data.type)
+          ? data.type
+          : isIncidentType(d.id)
+            ? d.id
+            : null;
+
+        if (!type) return;
+
+        offers.push({
+          id: d.id,
+          type,
+          ngoName:
+            typeof data.ngoName === "string" && data.ngoName.trim()
+              ? data.ngoName
+              : "Community NGO",
+          provide:
+            typeof data.provide === "string" ? data.provide : "",
+          quantity:
+            typeof data.quantity === "string" ? data.quantity : "",
+          eta: typeof data.eta === "string" ? data.eta : "",
+          createdAt: data.createdAt,
+        });
       });
-      setLocalStorage(LOCAL_STORAGE_KEY_NGO, result);
-      callback(result);
+
+      setLocalStorage(LOCAL_STORAGE_KEY_NGO, offers);
+      callback(offers);
     },
-    () => {
-      callback(getLocalStorage(LOCAL_STORAGE_KEY_NGO, {}));
+    (error) => {
+      console.warn("NGO offers listener error:", error);
+
+      const stored = getLocalStorage<unknown>(
+        LOCAL_STORAGE_KEY_NGO,
+        []
+      );
+
+      callback(normalizeNgoOffers(stored));
     }
   );
 }
 
 /**
- * Submit NGO offer to Firestore
+ * Submit a new NGO offer.
+ *
+ * A unique document ID is generated for each offer, so one NGO's
+ * offer will not overwrite another offer for the same incident type.
  */
 export async function submitNgoOfferInDb(
   type: IncidentType,
-  details: { provide: string; quantity: string; eta: string }
-): Promise<void> {
+  details: {
+    provide: string;
+    quantity: string;
+    eta: string;
+    ngoName?: string;
+  }
+): Promise<string> {
+  if (!details.provide.trim()) {
+    throw new Error("Please specify what support you can provide.");
+  }
+
+  if (!details.quantity.trim()) {
+    throw new Error("Please enter a quantity.");
+  }
+
+  const activeUser = auth?.currentUser;
+
+  const ngoName =
+    details.ngoName?.trim() ||
+    activeUser?.displayName ||
+    activeUser?.email ||
+    "Community NGO";
+
+  const offerId = db
+    ? doc(collection(db, "ngo_offers")).id
+    : `OFFER-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const offer: NgoOffer = {
+    id: offerId,
+    type,
+    ngoName,
+    provide: details.provide.trim(),
+    quantity: details.quantity.trim(),
+    eta: details.eta.trim(),
+  };
+
   if (db) {
-    await setDoc(doc(db, "ngo_offers", type), {
-      ...details,
-      type,
+    await setDoc(doc(db, "ngo_offers", offerId), {
+      ...offer,
+      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+      userId: activeUser?.uid || null,
     });
   } else {
-    const offers = getLocalStorage<Record<string, typeof details>>(
-      LOCAL_STORAGE_KEY_NGO,
-      {}
+    const existing = normalizeNgoOffers(
+      getLocalStorage<unknown>(LOCAL_STORAGE_KEY_NGO, [])
     );
-    offers[type] = details;
-    setLocalStorage(LOCAL_STORAGE_KEY_NGO, offers);
+
+    setLocalStorage<NgoOffer[]>(
+      LOCAL_STORAGE_KEY_NGO,
+      [offer, ...existing]
+    );
   }
+
+  return offerId;
 }
