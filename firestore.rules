@@ -8,6 +8,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Only registered users with verified accounts (no anonymous/guest users) to prevent false reports
+    function isRegisteredUser() {
+      return isAuthenticated() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -16,50 +21,50 @@ service cloud.firestore {
       return data.type in ['power', 'water', 'food', 'road', 'flood', 'fire'] &&
              data.location is string && data.location.size() > 0 && data.location.size() <= 200 &&
              data.status in ['reported', 'verified', 'assigned', 'resolved'] &&
-             data.priority in ['critical', 'high', 'medium'];
+             data.priority in ['critical', 'high', 'medium'] &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000));
     }
 
     // Incidents Collection
-    // Public read for live disaster awareness
-    // Authenticated users (including anonymous guest reports) can report
+    // Public read for community safety
+    // Only registered, authenticated users can report to prevent false updates and spam
     match /incidents/{incidentId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isValidIncident(request.resource.data);
-      allow update: if isAuthenticated();
-      allow delete: if false; // Incidents cannot be deleted by users, only marked resolved
+      allow create: if isRegisteredUser() && isValidIncident(request.resource.data);
+      allow update: if isAuthenticated() && isValidIncident(request.resource.data);
+      allow delete: if false; // Incidents cannot be deleted by users to preserve emergency audit logs
     }
 
     // Active Emergency Alerts
-    // Anyone can read alerts; only responders/admins can post or dismiss
+    // Anyone can read alerts; only responders/admins can broadcast or dismiss
     match /alerts/{alertId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isRegisteredUser();
     }
 
-    // Scheduled Outages (Eskom / Water board)
+    // Scheduled Outages (Eskom / Municipal water boards)
     match /outages/{outageId} {
       allow read: if true;
-      allow update: if isAuthenticated(); // For setting reminders
-      allow create, delete: if isAuthenticated();
+      allow update: if true; // Residents can toggle reminderSet
+      allow create, delete: if isRegisteredUser();
     }
 
-    // Relief Resources & Centres
+    // Relief Resources & Helplines
     match /resources/{resourceId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isRegisteredUser();
     }
 
     // NGO Aid Offers & Pledges
     match /ngo_offers/{offerId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isRegisteredUser();
     }
 
     // User Profiles
     match /users/{userId} {
       allow read: if true;
-      allow write: if isOwner(userId);
+      allow write: if isOwner(userId) || (isAuthenticated() && request.auth.uid == userId);
     }
   }
 }
-

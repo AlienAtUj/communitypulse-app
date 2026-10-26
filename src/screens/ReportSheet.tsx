@@ -6,6 +6,7 @@ import { Card } from "../components/Card";
 import { CategoryVisual } from "../components/CategoryVisual";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
+import { AuthModal } from "../components/AuthModal";
 import {
   IconPower,
   IconWater,
@@ -33,40 +34,153 @@ const REPORT_TYPES: {
 ];
 
 export function ReportSheet() {
-  const { isReportOpen, setIsReportOpen, submitReport, showToast, navigate } = useData();
+  const { currentUser, isReportOpen, setIsReportOpen, submitReport, showToast, navigate } = useData();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedType, setSelectedType] = useState<IncidentType | null>(null);
-  const [location] = useState<string>("Section C, Ward 8");
+  const [location, setLocation] = useState<string>(
+    () => currentUser?.ward || "Section C, Ward 8"
+  );
   const [landmark, setLandmark] = useState<string>("");
-  const [gpsConfirmed, setGpsConfirmed] = useState<boolean>(false);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+  const [locationError, setLocationError] = useState<string>("");
   const [description, setDescription] = useState<string>("");
-  const [photoAdded, setPhotoAdded] = useState<boolean>(false);
+  const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
+  const photoInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (isReportOpen) {
       setStep(1);
       setSelectedType(null);
       setLandmark("");
-      setGpsConfirmed(false);
+      setGpsCoords(null);
+      setGpsAccuracy(null);
+      setLocationError("");
       setDescription("");
-      setPhotoAdded(false);
+      setPhotoPreview(null);
+      if (currentUser?.ward) {
+        setLocation(currentUser.ward);
+      }
     }
-  }, [isReportOpen]);
+  }, [isReportOpen, currentUser?.ward]);
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setPhotoPreview(url);
+    }
+  };
+
+  const handleDetectGPS = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser/device.");
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationError("");
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        setGpsCoords({ lat: latitude, lng: longitude });
+        setGpsAccuracy(Math.round(accuracy));
+
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+            { headers: { "Accept-Language": "en" } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            const street = addr.road || addr.pedestrian || addr.suburb || "";
+            const houseNum = addr.house_number ? `${addr.house_number} ` : "";
+            const suburb =
+              addr.suburb || addr.neighbourhood || addr.residential || addr.city_district || "";
+            const city = addr.city || addr.town || addr.municipality || "";
+
+            const detectedLocation =
+              [suburb, city].filter(Boolean).join(", ") ||
+              `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+            const detectedLandmark =
+              [houseNum + street, addr.amenity].filter(Boolean).join(" near ") || "";
+
+            if (detectedLocation) setLocation(detectedLocation);
+            if (detectedLandmark && !landmark) {
+              setLandmark(detectedLandmark);
+            }
+            showToast(`Accurate GPS location verified (+/- ${Math.round(accuracy)}m)`, "success");
+          } else {
+            showToast(`GPS coordinates captured (+/- ${Math.round(accuracy)}m)`, "info");
+          }
+        } catch {
+          showToast(`GPS coordinates captured (+/- ${Math.round(accuracy)}m)`, "info");
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (error) => {
+        setIsLocating(false);
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setLocationError(
+              "Location permission denied. Please type your street and area manually below."
+            );
+            break;
+          case error.POSITION_UNAVAILABLE:
+            setLocationError("Position unavailable. Please enter your location manually.");
+            break;
+          case error.TIMEOUT:
+            setLocationError("Location request timed out. Please enter your location manually.");
+            break;
+          default:
+            setLocationError("Unable to acquire GPS location. Please enter manually.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
 
   const handleClose = () => {
     setIsReportOpen(false);
   };
 
-  const handleSendReport = () => {
-    if (!selectedType) return;
-    submitReport({
+  
+const handleSendReport = async () => {
+  if (!currentUser || currentUser.isAnonymous) {
+    showToast("Verified account required to submit a report.", "error");
+    setIsAuthOpen(true);
+    return;
+  }
+
+  if (!selectedType) return;
+
+  try {
+    await submitReport({
       type: selectedType,
-      location,
-      landmark,
-      description,
+      location: location.trim() || currentUser.ward || "Local Ward",
+      landmark: landmark.trim(),
+      description: description.trim(),
+      coordinates: gpsCoords || undefined,
+      accuracy: gpsAccuracy || undefined,
     });
+
+    // Only show the confirmation screen after saving succeeds.
     setStep(4);
-  };
+  } catch (error) {
+    // The error message is already handled by submitReport.
+    console.error("Report submission failed:", error);
+  }
+};
+
 
   const handleBackToHome = () => {
     setIsReportOpen(false);
@@ -74,13 +188,48 @@ export function ReportSheet() {
     showToast("Report received. Waiting for neighbours to confirm.", "success");
   };
 
+  const isGuest = !currentUser || currentUser.isAnonymous;
+
   return (
-    <BottomSheet
-      isOpen={isReportOpen}
-      onClose={handleClose}
-      title="Report a Problem"
-    >
-      {step === 1 && (
+    <>
+      <BottomSheet
+        isOpen={isReportOpen}
+        onClose={handleClose}
+        title="Report a Problem"
+      >
+        {isGuest ? (
+          <div className="py-6 flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-2xl bg-[#003DA5]/10 text-[#003DA5] border border-[#003DA5]/20 flex items-center justify-center mb-4 shadow-sm">
+              <IconReport size={32} />
+            </div>
+            <h2 className="text-[20px] font-bold leading-[1.3] text-[#111827] mb-2">
+              Verified Account Required
+            </h2>
+            <p className="text-[14px] leading-[1.5] text-[#6B7280] mb-6 max-w-[320px]">
+              To prevent false updates and keep community reports verified for emergency services, residents must sign in or register before reporting.
+            </p>
+            <div className="w-full flex flex-col gap-3">
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                onClick={() => setIsAuthOpen(true)}
+              >
+                Sign In or Create Account
+              </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                fullWidth
+                onClick={handleClose}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {step === 1 && (
         <div className="flex flex-col">
           <div className="mb-5">
             <h2 className="text-[20px] font-bold leading-[1.3] text-[#111827] mb-1">
@@ -151,7 +300,7 @@ export function ReportSheet() {
               Confirm your location
             </h2>
             <p className="text-[12px] font-normal leading-[1.4] text-[#6B7280]">
-              We use this to match your report to neighbours
+              Accurate address and coordinates ensure emergency responders and neighbours locate the problem.
             </p>
           </div>
 
@@ -164,67 +313,91 @@ export function ReportSheet() {
             </div>
           )}
 
-          {/* Map-preview card */}
+          {/* GPS Detector Card */}
           <div className="mb-4">
-            <Card className="p-0 overflow-hidden bg-[#F7F8FA]">
-              <div className="relative h-[128px] w-full flex items-center justify-center">
-                <svg
-                  className="absolute inset-0 w-full h-full text-[#E5E7EB]"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <defs>
-                    <pattern
-                      id="report-map-grid"
-                      width="16"
-                      height="16"
-                      patternUnits="userSpaceOnUse"
-                    >
-                      <circle cx="2" cy="2" r="1.5" fill="currentColor" />
-                    </pattern>
-                  </defs>
-                  <rect width="100%" height="100%" fill="url(#report-map-grid)" />
-                  <path
-                    d="M 0 64 L 420 64 M 180 0 L 210 128"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  />
-                </svg>
-                <div className="relative z-10 flex flex-col items-center">
-                  <div className="w-10 h-10 rounded-full bg-[#003DA5] text-[#FFFFFF] flex items-center justify-center shadow-lg ring-4 ring-[#003DA5]/20 animate-bounce">
+            <Card className="p-4 bg-[#F7F8FA] border border-[#E5E7EB]">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                      gpsCoords
+                        ? "bg-[#00A651]/10 text-[#00A651]"
+                        : "bg-[#003DA5]/10 text-[#003DA5]"
+                    }`}
+                  >
                     <IconLocation size={20} />
                   </div>
+                  <div>
+                    <h4 className="text-[14px] font-bold text-[#111827]">
+                      {gpsCoords ? "Exact GPS Coordinates Locked" : "Device GPS Location"}
+                    </h4>
+                    <p className="text-[11px] text-[#6B7280]">
+                      {gpsCoords
+                        ? `Lat: ${gpsCoords.lat.toFixed(5)}, Lng: ${gpsCoords.lng.toFixed(5)} (±${gpsAccuracy}m)`
+                        : "Detect high-precision coordinates from your device"}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="px-4 py-3 border-t border-[#E5E7EB] bg-[#FFFFFF] flex items-center justify-between">
-                <span className="text-[15px] font-medium leading-[1.5] text-[#111827]">
-                  {location}
-                </span>
-                {gpsConfirmed && (
-                  <span className="inline-flex items-center gap-1 text-[12px] font-medium text-[#00A651]">
-                    <IconCheck size={16} /> GPS verified
+                {gpsCoords && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#00A651] bg-[#00A651]/10 px-2.5 py-1 rounded-full">
+                    <IconCheck size={14} /> GPS Verified
                   </span>
                 )}
               </div>
+
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant={gpsCoords ? "secondary" : "primary"}
+                  size="md"
+                  fullWidth
+                  disabled={isLocating}
+                  onClick={handleDetectGPS}
+                >
+                  {isLocating
+                    ? "Acquiring GPS fix..."
+                    : gpsCoords
+                    ? "Refresh My GPS Location"
+                    : "Detect My Exact GPS Location"}
+                </Button>
+
+                {gpsCoords && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `https://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}`;
+                      window.open(url, "_blank", "noopener,noreferrer");
+                    }}
+                    className="text-[12px] text-[#003DA5] font-semibold underline text-center py-1 cursor-pointer"
+                  >
+                    View exact pin in Google Maps
+                  </button>
+                )}
+              </div>
+
+              {locationError && (
+                <div className="mt-2.5 p-2 rounded-lg bg-[#E4002B]/10 text-[#E4002B] text-[12px]">
+                  {locationError}
+                </div>
+              )}
             </Card>
           </div>
 
-          <div className="mb-4">
+          {/* Editable Area and Landmark Fields */}
+          <div className="flex flex-col gap-3.5 mb-6">
             <Input
-              label="STREET OR LANDMARK"
-              placeholder="e.g. 12 Mzamo Street"
+              label="WARD / SUBURB / AREA"
+              placeholder="e.g. Section C, Ward 8, Khayelitsha"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+
+            <Input
+              label="STREET ADDRESS OR LANDMARK"
+              placeholder="e.g. 14 Mzamo Street, near Primary School"
               value={landmark}
               onChange={(e) => setLandmark(e.target.value)}
             />
-          </div>
-
-          <div className="mb-6">
-            <Button
-              variant="secondary"
-              fullWidth
-              onClick={() => setGpsConfirmed(true)}
-            >
-              {gpsConfirmed ? "Current location confirmed" : "Use my current location"}
-            </Button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -233,6 +406,7 @@ export function ReportSheet() {
             </Button>
             <Button
               variant="primary"
+              disabled={!location.trim()}
               onClick={() => setStep(3)}
               className="flex-1"
             >
@@ -263,32 +437,46 @@ export function ReportSheet() {
           </div>
 
           <div className="mb-6">
-            <Card
-              onClick={() => setPhotoAdded((prev) => !prev)}
-              ariaLabel="Add a photo (Optional)"
-              className={[
-                "border-2 border-dashed rounded-2xl p-8 text-center flex flex-col items-center justify-center",
-                photoAdded
-                  ? "border-[#00A651] bg-[#00A651]/5"
-                  : "border-[#E5E7EB]",
-              ].join(" ")}
-            >
-              <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 transition-colors ${
-                  photoAdded
-                    ? "bg-[#00A651]/10 text-[#00A651]"
-                    : "bg-[#F3F4F6] text-[#6B7280]"
-                }`}
-              >
-                {photoAdded ? <IconCheck size={22} /> : <IconReport size={22} />}
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handlePhotoSelect}
+            />
+            {photoPreview ? (
+              <div className="relative rounded-2xl overflow-hidden border border-[#E5E7EB] bg-[#F7F8FA]">
+                <img
+                  src={photoPreview}
+                  alt="Incident evidence"
+                  className="w-full h-44 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => setPhotoPreview(null)}
+                  className="absolute top-2 right-2 px-3 py-1 bg-[#111827]/85 hover:bg-[#111827] text-[#FFFFFF] text-[12px] font-bold rounded-full backdrop-blur-sm cursor-pointer transition-colors shadow-md"
+                >
+                  Remove Photo
+                </button>
               </div>
-              <p className="text-[15px] font-normal leading-[1.5] text-[#111827]">
-                {photoAdded ? "Photo attached (ward8_site.jpg)" : "Add a photo"}
-              </p>
-              <p className="text-[12px] font-normal leading-[1.4] text-[#6B7280]">
-                {photoAdded ? "Tap to remove" : "Optional"}
-              </p>
-            </Card>
+            ) : (
+              <Card
+                onClick={() => photoInputRef.current?.click()}
+                ariaLabel="Take photo or attach from gallery"
+                className="border-2 border-dashed border-[#CBD5E1] hover:border-[#003DA5] rounded-2xl p-6 text-center flex flex-col items-center justify-center cursor-pointer transition-colors"
+              >
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-2 bg-[#F1F5F9] text-[#003DA5]">
+                  <IconReport size={22} />
+                </div>
+                <p className="text-[15px] font-semibold text-[#111827]">
+                  Take a photo or upload
+                </p>
+                <p className="text-[12px] text-[#6B7280]">
+                  Supports phone camera and gallery
+                </p>
+              </Card>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -323,6 +511,10 @@ export function ReportSheet() {
           </Button>
         </div>
       )}
-    </BottomSheet>
+          </>
+        )}
+      </BottomSheet>
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+    </>
   );
 }

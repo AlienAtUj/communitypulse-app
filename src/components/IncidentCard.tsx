@@ -1,5 +1,6 @@
 import React from "react";
-import { Incident, IncidentType, INCIDENT_TYPE_LABELS } from "../lib/data";
+import { Incident, IncidentType, INCIDENT_TYPE_LABELS, calculateDistanceKm } from "../lib/data";
+import { useData } from "../context/DataContext";
 import { Card } from "./Card";
 import { StatusBadge } from "./StatusBadge";
 import { CategoryVisual } from "./CategoryVisual";
@@ -39,7 +40,18 @@ export const INCIDENT_COLORS = {
 } as const;
 
 export function IncidentCard({ incident, onClick }: IncidentCardProps) {
+  const { currentUser } = useData();
   const typeLabel = INCIDENT_TYPE_LABELS[incident.type];
+
+  const isMine =
+    incident.isMine ||
+    (currentUser?.uid &&
+      (incident as unknown as { userId?: string }).userId === currentUser.uid);
+
+  const distance =
+    currentUser?.coordinates && incident.coordinates
+      ? calculateDistanceKm(currentUser.coordinates, incident.coordinates)
+      : null;
 
   return (
     <Card
@@ -61,8 +73,16 @@ export function IncidentCard({ incident, onClick }: IncidentCardProps) {
               </h3>
               <StatusBadge status={incident.status} />
             </div>
-            <p className="text-[12px] font-normal leading-[1.4] text-[#6B7280] truncate">
-              {incident.location} · {incident.time}
+            <p className="text-[12px] font-normal leading-[1.4] text-[#6B7280] truncate flex items-center gap-1.5">
+              {isMine && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#00A651]/10 text-[#00A651] shrink-0">
+                  Your report
+                </span>
+              )}
+              <span className="truncate">
+                {distance !== null ? `${distance}km away · ` : ""}
+                {incident.location} · {incident.time}
+              </span>
             </p>
             <p className="text-[12px] font-medium leading-[1.4] text-[#003DA5] mt-1 truncate">
               {incident.confirmations} neighbours reported · {incident.affected} households

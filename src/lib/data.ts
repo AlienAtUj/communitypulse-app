@@ -1,5 +1,31 @@
-export type IncidentType = "power" | "water" | "food" | "road" | "flood" | "fire";
-export type IncidentStatus = "reported" | "verified" | "assigned" | "resolved";
+
+export type IncidentType =
+  | "power"
+  | "water"
+  | "food"
+  | "road"
+  | "flood"
+  | "fire";
+
+export type IncidentStatus =
+  | "reported"
+  | "verified"
+  | "assigned"
+  | "resolved";
+
+  export interface NgoNeed {
+  type: IncidentType;
+  label: string;
+  households: number;
+  incidentsCount: number;
+  priority: Priority;
+  offerSent?: boolean;
+  offerDetails?: NgoOffer;
+  offers: NgoOffer[];
+  locations: string[];
+  incidents: Incident[];
+}
+
 export type Priority = "critical" | "high" | "medium";
 
 export type HazardCategory =
@@ -17,23 +43,25 @@ export interface Incident {
   status: IncidentStatus;
   priority: Priority;
   facilities?: string[];
-  time: string;        // e.g. "17:30"
-  eta?: string;        // e.g. "19:45"
+  time: string;
+  eta?: string;
   resolvedAt?: string;
   description?: string;
   latestUpdate?: string;
   latestUpdateBy?: string;
   isMine?: boolean;
+  coordinates?: { lat: number; lng: number };
+  accuracy?: number;
 }
 
 export interface ScheduledOutage {
   id: string;
   type: "power" | "water";
-  title: string;       // e.g. "Electricity — Stage 2 Load Shedding"
-  day: string;         // e.g. "Today", "Tomorrow", "Sun, 25 Oct"
-  timeSlot: string;    // e.g. "18:00 – 20:30"
-  location: string;    // e.g. "Section C, Ward 8"
-  note: string;        // e.g. "Charge phones and lamps before 18:00."
+  title: string;
+  day: string;
+  timeSlot: string;
+  location: string;
+  note: string;
   reminderSet: boolean;
 }
 
@@ -41,10 +69,13 @@ export interface Resource {
   id: string;
   type: "water" | "food" | "charging" | "clinic" | "shelter";
   name: string;
-  distance: string;    // e.g. "0.8km"
-  hours: string;       // e.g. "Open until 18:00"
+  distance: string;
+  hours: string;
   status: "open" | "closed";
-  updated: string;     // e.g. "12 min ago"
+  updated: string;
+  address?: string;
+  phone?: string;
+  coordinates?: { lat: number; lng: number };
 }
 
 export interface Alert {
@@ -54,6 +85,24 @@ export interface Alert {
   text: string;
 }
 
+/**
+ * One NGO offer.
+ * Multiple offers can exist for the same incident type.
+ */
+export interface NgoOffer {
+  id: string;
+  type: IncidentType;
+  ngoName: string;
+  provide: string;
+  quantity: string;
+  eta: string;
+  createdAt?: unknown;
+}
+
+/**
+ * An aggregated community need, with all offers
+ * received for that incident type.
+ */
 export interface NgoNeed {
   type: IncidentType;
   label: string;
@@ -61,11 +110,8 @@ export interface NgoNeed {
   incidentsCount: number;
   priority: Priority;
   offerSent?: boolean;
-  offerDetails?: {
-    provide: string;
-    quantity: string;
-    eta: string;
-  };
+  offerDetails?: NgoOffer;
+  offers: NgoOffer[];
 }
 
 export interface LocationIncidentGroup {
@@ -78,98 +124,80 @@ export interface LocationIncidentGroup {
   incidents: Incident[];
 }
 
-export const SEED_INCIDENTS: Incident[] = [
-  { id: "INC-001", type: "power", location: "Section C, Ward 8", affected: 240, confirmations: 4,
-    status: "assigned", priority: "high", facilities: ["Clinic fridge", "Traffic lights"],
-    time: "17:30", eta: "19:45", isMine: true },
-  { id: "INC-002", type: "water", location: "Section D, Ward 8", affected: 36, confirmations: 3,
-    status: "verified", priority: "high", facilities: ["Clinic"], time: "16:00" },
-  { id: "INC-003", type: "food", location: "Ward 8", affected: 18, confirmations: 5,
-    status: "reported", priority: "medium", time: "14:20" },
-  { id: "INC-004", type: "road", location: "Main Road", affected: 42, confirmations: 6,
-    status: "verified", priority: "high", time: "13:10",
-    facilities: ["Clinic access", "School route"], isMine: true },
-  { id: "INC-005", type: "flood", location: "Section A, Ward 8", affected: 12, confirmations: 3,
-    status: "assigned", priority: "critical",
-    facilities: ["3 elderly households"], time: "12:00", eta: "13:30" },
-  { id: "INC-006", type: "fire", location: "Section B, Ward 8", affected: 15, confirmations: 4,
-    status: "verified", priority: "critical",
-    facilities: ["Community crèche"], time: "15:45",
-    description: "Informal settlement shack fire near Mzamo lane, strong winds." },
-];
+export const SEED_INCIDENTS: Incident[] = [];
 
-export const SEED_SCHEDULED_OUTAGES: ScheduledOutage[] = [
-  {
-    id: "SCH-001",
-    type: "power",
-    title: "Electricity — Load Shedding",
-    day: "Today",
-    timeSlot: "18:00 – 20:30",
-    location: "Section C, Ward 8",
-    note: "Reminder active for today: Charge devices before 18:00.",
-    reminderSet: true,
-  },
-  {
-    id: "SCH-002",
-    type: "water",
-    title: "Water — Pipe Maintenance",
-    day: "Tomorrow",
-    timeSlot: "08:00 – 14:00",
-    location: "Section C & D, Ward 8",
-    note: "Store 20L of drinking water tonight.",
-    reminderSet: true,
-  },
-  {
-    id: "SCH-003",
-    type: "power",
-    title: "Electricity — Load Shedding",
-    day: "Tomorrow",
-    timeSlot: "20:00 – 22:30",
-    location: "Section C, Ward 8",
-    note: "Evening slot scheduled by Eskom.",
-    reminderSet: false,
-  },
-  {
-    id: "SCH-004",
-    type: "water",
-    title: "Water — Reservoir Cleaning",
-    day: "Sun, 25 Oct",
-    timeSlot: "09:00 – 15:00",
-    location: "Ward 8 (All Sections)",
-    note: "Water tanker will be parked at Community Hall.",
-    reminderSet: false,
-  },
-  {
-    id: "SCH-005",
-    type: "power",
-    title: "Electricity — Substation Upgrade",
-    day: "Mon, 26 Oct",
-    timeSlot: "10:00 – 13:00",
-    location: "Section C, Ward 8",
-    note: "Planned municipal line maintenance.",
-    reminderSet: false,
-  },
-];
+export const SEED_SCHEDULED_OUTAGES: ScheduledOutage[] = [];
 
 export const SEED_RESOURCES: Resource[] = [
-  { id: "RES-001", type: "water", name: "Water tanker — Community Hall", distance: "0.8km",
-    hours: "Open until 18:00", status: "open", updated: "12 min ago" },
-  { id: "RES-002", type: "charging", name: "Charging station — Library", distance: "1.2km",
-    hours: "Open until 20:00", status: "open", updated: "5 min ago" },
-  { id: "RES-003", type: "food", name: "Food parcels — Sizanani Centre", distance: "2.1km",
-    hours: "Tomorrow 09:00", status: "open", updated: "1 hour ago" },
-  { id: "RES-004", type: "clinic", name: "Clinic — Mzamo", distance: "3.4km",
-    hours: "Open until 17:00", status: "open", updated: "30 min ago" },
-  { id: "RES-005", type: "shelter", name: "Shelter — Mzamo Primary School", distance: "3.6km",
-    hours: "Open 24 hours", status: "open", updated: "20 min ago" },
+  {
+    id: "RES-EMS",
+    type: "clinic",
+    name: "National Emergency Medical Services (EMS Ambulance)",
+    distance: "Emergency Dispatch",
+    hours: "Open 24/7",
+    status: "open",
+    updated: "Live service",
+    address: "Emergency Medical Services South Africa",
+    phone: "10177",
+  },
+  {
+    id: "RES-POLICE",
+    type: "shelter",
+    name: "SAPS Emergency & Community Safety Center",
+    distance: "Police Services",
+    hours: "Open 24/7",
+    status: "open",
+    updated: "Live service",
+    address: "South African Police Service Emergency",
+    phone: "10111",
+  },
+  {
+    id: "RES-DISASTER",
+    type: "shelter",
+    name: "National Disaster Management Helpline",
+    distance: "Disaster Operations",
+    hours: "Open 24/7",
+    status: "open",
+    updated: "Live service",
+    address: "National Disaster Management Centre, South Africa",
+    phone: "112",
+  },
+  {
+    id: "RES-RED-CROSS",
+    type: "food",
+    name: "Red Cross Disaster Relief South Africa",
+    distance: "Emergency Aid Hub",
+    hours: "Response Ready",
+    status: "open",
+    updated: "Live service",
+    address: "South African Red Cross Society",
+    phone: "0800000000",
+  },
+  {
+    id: "RES-ESKOM",
+    type: "charging",
+    name: "Eskom Customer Care & Power Grid Dispatch",
+    distance: "National Power Grid",
+    hours: "Open 24/7",
+    status: "open",
+    updated: "Live service",
+    address: "Eskom Megawatt Park, Sunninghill, Sandton",
+    phone: "0860037566",
+  },
+  {
+    id: "RES-WATER-BOARD",
+    type: "water",
+    name: "Municipal Water & Sanitation Emergency Dispatch",
+    distance: "Municipal Water Operations",
+    hours: "Open 24/7",
+    status: "open",
+    updated: "Live service",
+    address: "Municipal Water and Sanitation Department",
+    phone: "0800222700",
+  },
 ];
 
-export const ACTIVE_ALERT: Alert = {
-  id: "ALERT-001",
-  variant: "warning",
-  icon: "power",
-  text: "Load shedding 18:00–20:30 in your area. Charge devices.",
-};
+export const ACTIVE_ALERT: Alert | null = null;
 
 export const PRIORITY_ORDER: Record<Priority, number> = {
   critical: 0,
@@ -195,7 +223,10 @@ export const INCIDENT_CATEGORY_NAMES: Record<IncidentType, string> = {
   fire: "Fire",
 };
 
-export const HAZARD_FILTER_OPTIONS: { id: HazardCategory; label: string }[] = [
+export const HAZARD_FILTER_OPTIONS: {
+  id: HazardCategory;
+  label: string;
+}[] = [
   { id: "all", label: "All" },
   { id: "infrastructure", label: "Infrastructure" },
   { id: "flood", label: "Flood" },
@@ -207,6 +238,7 @@ export function matchesHazardCategory(
   category: HazardCategory
 ): boolean {
   if (category === "all") return true;
+
   if (category === "infrastructure") {
     return (
       incident.type === "power" ||
@@ -214,6 +246,7 @@ export function matchesHazardCategory(
       incident.type === "road"
     );
   }
+
   return incident.type === category;
 }
 
@@ -221,13 +254,174 @@ export function filterIncidentsByHazard(
   incidents: Incident[],
   category: HazardCategory
 ): Incident[] {
-  return incidents.filter((inc) => matchesHazardCategory(inc, category));
+  return incidents.filter((inc) =>
+    matchesHazardCategory(inc, category)
+  );
 }
 
-export function sortIncidents(incidents: Incident[]): Incident[] {
+/**
+ * Calculates distance in kilometers between two GPS coordinates
+ * using the Haversine formula.
+ */
+export function calculateDistanceKm(
+  coord1: { lat: number; lng: number },
+  coord2: { lat: number; lng: number }
+): number {
+  const R = 6371;
+
+  const dLat = ((coord2.lat - coord1.lat) * Math.PI) / 180;
+  const dLng = ((coord2.lng - coord1.lng) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((coord1.lat * Math.PI) / 180) *
+      Math.cos((coord2.lat * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  const c =
+    2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(R * c * 10) / 10;
+}
+
+/**
+ * Checks whether an incident location is in or near
+ * the user's ward or area.
+ */
+export function isLocationNearby(
+  incidentLocation: string,
+  userLocation?: string
+): boolean {
+  if (!userLocation || !incidentLocation) return false;
+
+  const normUser = userLocation.toLowerCase();
+  const normInc = incidentLocation.toLowerCase();
+
+  // Direct containment
+  if (
+    normUser.includes(normInc) ||
+    normInc.includes(normUser)
+  ) {
+    return true;
+  }
+
+  // Ward number match
+  const userWardMatch = normUser.match(/ward\s*(\d+)/i);
+  const incWardMatch = normInc.match(/ward\s*(\d+)/i);
+
+  if (
+    userWardMatch &&
+    incWardMatch &&
+    userWardMatch[1] === incWardMatch[1]
+  ) {
+    return true;
+  }
+
+  // Section / suburb token overlap
+  const stopWords = new Set([
+    "south",
+    "africa",
+    "city",
+    "road",
+    "street",
+    "avenue",
+    "near",
+  ]);
+
+  const userTokens = normUser
+    .split(/[\s,.-]+/)
+    .map((t) => t.trim())
+    .filter(
+      (t) => t.length >= 3 && !stopWords.has(t)
+    );
+
+  const incTokens = normInc
+    .split(/[\s,.-]+/)
+    .map((t) => t.trim())
+    .filter(
+      (t) => t.length >= 3 && !stopWords.has(t)
+    );
+
+  return userTokens.some((token) =>
+    incTokens.includes(token)
+  );
+}
+
+/**
+ * Filters incidents so residents see disruptions near them
+ * or incidents reported by them.
+ */
+export function filterNearbyIncidents(
+  incidents: Incident[],
+  user?: {
+    ward?: string;
+    coordinates?: { lat: number; lng: number };
+    uid?: string;
+  } | null,
+  options: {
+    scope?: "nearby" | "mine" | "all";
+    maxDistanceKm?: number;
+  } = {}
+): Incident[] {
+  const { scope = "nearby", maxDistanceKm = 15 } = options;
+
+  if (scope === "all") {
+    return incidents;
+  }
+
+  return incidents.filter((incident) => {
+    // If the user reported the incident, always show it.
+    const isOwner =
+      incident.isMine ||
+      (user?.uid &&
+        (incident as unknown as { userId?: string }).userId ===
+          user.uid);
+
+    if (scope === "mine") {
+      return Boolean(isOwner);
+    }
+
+    if (isOwner) {
+      return true;
+    }
+
+    // GPS distance check
+    if (user?.coordinates && incident.coordinates) {
+      const dist = calculateDistanceKm(
+        user.coordinates,
+        incident.coordinates
+      );
+
+      return dist <= maxDistanceKm;
+    }
+
+    // Ward / suburb text match
+    if (
+      user?.ward &&
+      isLocationNearby(incident.location, user.ward)
+    ) {
+      return true;
+    }
+
+    // Show incidents when the user has not set a location.
+    if (!user?.ward && !user?.coordinates) {
+      return true;
+    }
+
+    return false;
+  });
+}
+
+export function sortIncidents(
+  incidents: Incident[]
+): Incident[] {
   return [...incidents].sort((a, b) => {
-    const pDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+    const pDiff =
+      PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+
     if (pDiff !== 0) return pDiff;
+
     return b.time.localeCompare(a.time);
   });
 }
@@ -239,16 +433,26 @@ export function filterIncidentsByTab(
 ): Incident[] {
   const filtered = incidents.filter((inc) => {
     const matchesTab =
-      tab === "active" ? inc.status !== "resolved" : inc.status === "resolved";
-    return matchesTab && matchesHazardCategory(inc, hazardCategory);
+      tab === "active"
+        ? inc.status !== "resolved"
+        : inc.status === "resolved";
+
+    return (
+      matchesTab &&
+      matchesHazardCategory(inc, hazardCategory)
+    );
   });
+
   return sortIncidents(filtered);
 }
 
 export function groupIncidentsByLocation(
   incidents: Incident[]
 ): LocationIncidentGroup[] {
-  const active = sortIncidents(incidents.filter((i) => i.status !== "resolved"));
+  const active = sortIncidents(
+    incidents.filter((i) => i.status !== "resolved")
+  );
+
   const map = new Map<string, Incident[]>();
 
   for (const inc of active) {
@@ -264,20 +468,35 @@ export function groupIncidentsByLocation(
       (sum, item) => sum + Math.max(1, item.confirmations),
       0
     );
-    const totalHouseholds = list.reduce((sum, item) => sum + item.affected, 0);
-    const highestPriority = list.reduce<Priority>((best, item) => {
-      return PRIORITY_ORDER[item.priority] < PRIORITY_ORDER[best]
-        ? item.priority
-        : best;
-    }, "medium");
+
+    const totalHouseholds = list.reduce(
+      (sum, item) => sum + item.affected,
+      0
+    );
+
+    const highestPriority = list.reduce<Priority>(
+      (best, item) =>
+        PRIORITY_ORDER[item.priority] <
+        PRIORITY_ORDER[best]
+          ? item.priority
+          : best,
+      "medium"
+    );
 
     const hazardDescriptions = list
-      .map((item) => INCIDENT_TYPE_LABELS[item.type].toLowerCase())
-      .filter((val, idx, arr) => arr.indexOf(val) === idx);
+      .map((item) =>
+        INCIDENT_TYPE_LABELS[item.type].toLowerCase()
+      )
+      .filter(
+        (val, idx, arr) => arr.indexOf(val) === idx
+      );
 
     const hazardJoined = hazardDescriptions.join(" and ");
-    const peopleWord = totalReporters === 1 ? "person" : "people";
-    const summaryText = `${totalReporters} ${peopleWord} from ${location} reported ${hazardJoined}`;
+    const peopleWord =
+      totalReporters === 1 ? "person" : "people";
+
+    const summaryText =
+      `${totalReporters} ${peopleWord} from ${location} reported ${hazardJoined}`;
 
     groups.push({
       location,
@@ -292,44 +511,94 @@ export function groupIncidentsByLocation(
 
   return groups.sort(
     (a, b) =>
-      PRIORITY_ORDER[a.highestPriority] - PRIORITY_ORDER[b.highestPriority] ||
+      PRIORITY_ORDER[a.highestPriority] -
+        PRIORITY_ORDER[b.highestPriority] ||
       b.totalReporters - a.totalReporters
   );
 }
 
 export function filterResourcesByCategory(
   resources: Resource[],
-  category: "all" | "water" | "food" | "charging" | "clinic" | "shelter"
+  category:
+    | "all"
+    | "water"
+    | "food"
+    | "charging"
+    | "clinic"
+    | "shelter"
 ): Resource[] {
   if (category === "all") return resources;
+
   return resources.filter((res) => res.type === category);
 }
 
+/**
+ * Aggregates active incidents into community needs.
+ * Every offer matching an incident type is retained.
+ */
 export function getAggregatedNeeds(
   incidents: Incident[],
-  offers: Record<string, { provide: string; quantity: string; eta: string }>
+  offers: NgoOffer[]
 ): NgoNeed[] {
-  const active = incidents.filter((i) => i.status !== "resolved");
-  const types: IncidentType[] = ["water", "food", "power", "flood", "fire", "road"];
+  const active = incidents.filter(
+    (incident) => incident.status !== "resolved"
+  );
+
+  const types: IncidentType[] = [
+    "water",
+    "food",
+    "power",
+    "flood",
+    "fire",
+    "road",
+  ];
+
   const needs: NgoNeed[] = [];
 
-  for (const t of types) {
-    const matching = active.filter((i) => i.type === t);
-    if (matching.length > 0) {
-      const households = matching.reduce((sum, item) => sum + item.affected, 0);
-      const highestPriority = matching.reduce<Priority>((best, item) => {
-        return PRIORITY_ORDER[item.priority] < PRIORITY_ORDER[best] ? item.priority : best;
-      }, "medium");
-      needs.push({
-        type: t,
-        label: INCIDENT_CATEGORY_NAMES[t],
-        households,
-        incidentsCount: matching.length,
-        priority: highestPriority,
-        offerSent: Boolean(offers[t]),
-        offerDetails: offers[t],
-      });
-    }
+  for (const type of types) {
+    const matching = active.filter(
+      (incident) => incident.type === type
+    );
+
+    if (matching.length === 0) continue;
+
+    const households = matching.reduce(
+      (sum, incident) => sum + incident.affected,
+      0
+    );
+
+    const highestPriority = matching.reduce<Priority>(
+      (best, incident) =>
+        PRIORITY_ORDER[incident.priority] <
+        PRIORITY_ORDER[best]
+          ? incident.priority
+          : best,
+      "medium"
+    );
+
+    const matchingOffers = offers.filter(
+      (offer) => offer.type === type
+    );
+
+   needs.push({
+  type,
+  label: INCIDENT_CATEGORY_NAMES[type],
+  households,
+  incidentsCount: matching.length,
+  priority: highestPriority,
+  offerSent: matchingOffers.length > 0,
+  offerDetails: matchingOffers[0],
+  offers: matchingOffers,
+  locations: [
+    ...new Set(
+      matching
+        .map((incident) => incident.location.trim())
+        .filter(Boolean)
+    ),
+  ],
+  incidents: matching,
+});
   }
+
   return needs;
 }
